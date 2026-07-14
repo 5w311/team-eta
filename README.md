@@ -33,9 +33,7 @@ worker cached it on first load.
 
 ## Notes
 
-- Settings persist per-device via `localStorage`. Because storage is tied to the domain and
-  not the folder, the rename from Team ETA carried everything over — tuning, swap schedule,
-  theme.
+- Settings persist per-device via `localStorage`..
 - Timezone resolution is a lookup table covering all 50 states, with per-city handling for
   the split states (TX, TN, KY, FL, IN, ND, SD, NE, KS, ID, OR, MI). Unknown towns fall back
   to a manual zone picker.
