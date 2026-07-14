@@ -110,14 +110,17 @@ dependencies, so it runs under [Vitest](https://vitest.dev/) in plain Node.
 
 ```
 npm install
-npm test          # one-shot run
+npm test              # one-shot unit run (Vitest)
 npm run test:watch
+npm run test:browser  # end-to-end smoke test in a real browser (Playwright)
 ```
 
-Tests live in `test/`. They cover the `(start, end]` swap boundaries and DST edge
-cases, the fixed-point ETA (including the zero-swap short run and the fuel off-by-one),
-`fromWall`/`toWall` round-trips, the full split-state city table, and the claim that the
-34 counts 34 *real* elapsed hours across both DST transitions. CI runs them on every push
+Tests live in `test/`. The Vitest suite covers the `(start, end]` swap boundaries and DST
+edge cases, the fixed-point ETA (including the zero-swap short run and the fuel
+off-by-one), `fromWall`/`toWall` round-trips, the full split-state city table, and the
+claim that the 34 counts 34 *real* elapsed hours across both DST transitions. The browser
+smoke test (`test/smoke.browser.mjs`) serves the app over HTTP and confirms `index.html`
+loads `lib/logic.js` as a module and renders a computed arrival. CI runs both on every push
 (`.github/workflows/test.yml`).
 
 ## Updating the app
