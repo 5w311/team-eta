@@ -186,7 +186,8 @@
   </div>
 
   <div class="foot">Team math — no 10-hour reset built in. Each of you still owes the 11/14 and the
-    70-hour cycle, so check your clocks on long runs before you trust this number.</div>
+    70-hour cycle, so check your clocks on long runs before you trust this number.
+    <span style="opacity:.55"> · v1.1</span></div>
 </div>
 
 <script>
@@ -313,21 +314,32 @@ const hm = h => { const s=Math.round(Math.abs(h)*60);
 
 /* ---------------- state ---------------- */
 const PRESETS = {
-  Conservative:{mph:62,fuelEvery:800,fuelMin:50,restEvery:4,restMin:20},
-  Realistic:{mph:65,fuelEvery:900,fuelMin:40,restEvery:5,restMin:15},
-  Push:{mph:67,fuelEvery:1000,fuelMin:35,restEvery:6,restMin:10}
+  Conservative:{mph:64,fuelEvery:500,fuelMin:15,restEvery:4,restMin:20},
+  Realistic:{mph:65,fuelEvery:650,fuelMin:15,restEvery:5,restMin:20},
+  Push:{mph:68,fuelEvery:800,fuelMin:20,restEvery:6,restMin:15}
 };
+// Bump when PRESETS change: forces saved copies on existing phones to refresh,
+// instead of the old defaults overriding the new ones from localStorage.
+const PRESET_VERSION = 2;
 const S = {
   mode:"quick", rate:50, preset:"Realistic", p:{...PRESETS.Realistic},
   originTz:deviceTz(), originName:"Your device", destTz:null, destName:""
 };
 try{
   const saved = JSON.parse(localStorage.getItem("teamEta")||"null");
-  if(saved){ Object.assign(S,{mode:saved.mode??S.mode, rate:saved.rate??S.rate,
-    preset:saved.preset??S.preset, p:saved.p??S.p}); }
+  if(saved){
+    // Always keep what's personal to the driver.
+    S.mode = saved.mode ?? S.mode;
+    S.rate = saved.rate ?? S.rate;
+    // Only keep tuning if it was saved against the current preset set.
+    if(saved.pv === PRESET_VERSION){
+      S.preset = saved.preset ?? S.preset;
+      S.p = saved.p ?? S.p;
+    }
+  }
 }catch{}
 const save = () => { try{ localStorage.setItem("teamEta",
-  JSON.stringify({mode:S.mode,rate:S.rate,preset:S.preset,p:S.p})); }catch{} };
+  JSON.stringify({pv:PRESET_VERSION, mode:S.mode, rate:S.rate, preset:S.preset, p:S.p})); }catch{} };
 
 const $ = id => document.getElementById(id);
 const show = (el,on) => el.classList.toggle("hide", !on);
@@ -514,6 +526,15 @@ syncTune();
 setMode(S.mode);
 
 if("serviceWorker" in navigator){
+  // If a new version is deployed, the incoming worker takes over and we reload once
+  // so the driver sees it on first launch — not the launch after.
+  const hadController = !!navigator.serviceWorker.controller;  // false on first-ever visit
+  let reloading = false;
+  navigator.serviceWorker.addEventListener("controllerchange", ()=>{
+    if(!hadController || reloading) return;   // don't bounce a fresh install
+    reloading = true;
+    location.reload();
+  });
   window.addEventListener("load", ()=> navigator.serviceWorker.register("./sw.js").catch(()=>{}));
 }
 </script>
