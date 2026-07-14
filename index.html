@@ -3,36 +3,91 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Team ETA</title>
+<title>MilesPost</title>
 <meta name="theme-color" content="#0B0E10">
-<meta name="description" content="Team-driver ETA calculator. Works offline.">
+<meta name="description" content="Team-driver ETA and 34-hour reset. Works offline.">
+<script>
+/* Runs before first paint so day mode never flashes black. */
+(function(){
+  try{
+    var t = localStorage.getItem("milespost.theme") || localStorage.getItem("teamEtaTheme");
+    if(!t) t = window.matchMedia("(prefers-color-scheme: light)").matches ? "day" : "night";
+    document.documentElement.setAttribute("data-theme", t);
+  }catch(e){ document.documentElement.setAttribute("data-theme","night"); }
+})();
+</script>
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" href="./apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Team ETA">
+<meta name="apple-mobile-web-app-title" content="MilesPost">
 <style>
-  :root{
+  /* Night: the Cascadia dash at 3am. Borders separate surfaces — no shadows in the dark. */
+  :root, [data-theme="night"]{
+    color-scheme: dark;
+    background-color:#0B0E10;
     --asphalt:#0B0E10; --panel:#14181C; --line:#2B333A;
     --amber:#FFB020; --amber-dim:#7A5511; --reefer:#5AC8E8;
     --good:#4FD18B; --late:#FF5D52; --ink:#E7EDF2; --mute:#7C8B96;
+    --bar-off:#232A30; --rest:#3A444C; --warn-bg:rgba(255,176,32,.06);
+    --on-solid:#0B0E10; --shadow:none;
+  }
+  /* Day: cool ground, warm amber. Amber must darken to #A8490A to clear 4.5:1 on white
+     AND on the page — raw #FFB020 on white is 1.8:1, invisible in the glare you'd need
+     it in. Page sits at 95% white, so borders + shadows carry the card separation. */
+  [data-theme="day"]{
+    color-scheme: light;
+    background-color:#F2F4F7;
+    --asphalt:#F2F4F7; --panel:#FFFFFF; --line:#CBD1D6;
+    --amber:#A8490A; --amber-dim:#E3B584; --reefer:#0369A1;
+    --good:#15803D; --late:#B3261E; --ink:#0F1419; --mute:#59636D;
+    --bar-off:#D5DADE; --rest:#B9C1C8; --warn-bg:rgba(168,73,10,.07);
+    --on-solid:#FFFFFF;
+    --shadow:0 1px 3px rgba(15,20,25,.10), 0 1px 2px rgba(15,20,25,.06);
+  }
+  :root{
     --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     --sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   }
+  body,.card,input,select,button,.stamp{
+    transition:background-color .2s ease, color .2s ease, border-color .2s ease}
+  @media (prefers-reduced-motion: reduce){ *{transition:none !important} }
+
   *{box-sizing:border-box}
-  html,body{margin:0;background:var(--asphalt);color:var(--ink);font-family:var(--sans);
+  html,body{margin:0;background-color:var(--asphalt);color:var(--ink);font-family:var(--sans);
     -webkit-text-size-adjust:100%}
-  body{padding:16px calc(16px + env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom))
+  /* A host page (app preview, in-app browser) can force html/body transparent and let its
+     own dark canvas show through. Paint the background on a layer this app owns. */
+  body{min-height:100vh; min-height:100dvh; position:relative;
+    padding:16px calc(16px + env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom))
     calc(16px + env(safe-area-inset-left)); padding-top:calc(16px + env(safe-area-inset-top))}
+  body::before{content:"";position:fixed;inset:0;background-color:var(--asphalt);
+    z-index:-1;pointer-events:none}
   .wrap{max-width:470px;margin:0 auto}
 
-  .brand{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px}
-  .brand b{font-family:var(--mono);font-size:12px;letter-spacing:.22em;color:var(--amber);font-weight:400}
-  .brand span{font-family:var(--mono);font-size:10px;letter-spacing:.14em;color:var(--mute)}
+  .brand{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+  .brand b{font-family:var(--mono);font-size:13px;letter-spacing:.22em;color:var(--amber);
+    font-weight:400}
+  .brand-r{display:flex;align-items:center;gap:10px}
+  .tag{font-family:var(--mono);font-size:10px;letter-spacing:.14em;color:var(--mute)}
+  @media (max-width:430px){ .tag{display:none} }
+
+  .switch{width:52px;height:28px;flex:none;padding:0;border-radius:999px;
+    border:1px solid var(--line);background:var(--panel);position:relative;box-shadow:var(--shadow)}
+  .switch .knob{position:absolute;top:2px;left:2px;width:22px;height:22px;border-radius:50%;
+    background:var(--amber);transition:transform .2s ease, background-color .2s ease;
+    display:flex;align-items:center;justify-content:center}
+  [data-theme="day"] .switch .knob{transform:translateX(24px)}
+  .switch svg{width:13px;height:13px;display:block}
+  .switch .moon{fill:var(--on-solid)}
+  .switch .sun{fill:none;stroke:var(--on-solid);stroke-width:2.1;stroke-linecap:round;display:none}
+  [data-theme="day"] .switch .moon{display:none}
+  [data-theme="day"] .switch .sun{display:block}
 
   .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;
-    padding:16px;margin-bottom:14px}
+    padding:16px;margin-bottom:14px;box-shadow:var(--shadow)}
   .readout{border-top:2px solid var(--amber);padding:18px}
+  .readout.done{border-top-color:var(--good)}
 
   label,.lbl{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.14em;
     text-transform:uppercase;color:var(--mute);margin-bottom:6px}
@@ -44,48 +99,94 @@
   :focus-visible{box-shadow:0 0 0 2px var(--amber)}
   .row{display:flex;gap:8px}
   .row > input{flex:1}
-  .fieldwrap{position:relative}
-  .suffix{position:absolute;right:12px;top:12px;font-family:var(--mono);font-size:12px;color:var(--mute);
-    pointer-events:none}
   .group{margin-bottom:14px}
+  .group:last-child{margin-bottom:0}
+  .fieldwrap{position:relative}
+  .suffix{position:absolute;right:12px;top:12px;font-family:var(--mono);font-size:12px;
+    color:var(--mute);pointer-events:none}
 
   button{font-family:var(--mono);cursor:pointer;border-radius:6px;border:1px solid var(--line);
     background:transparent;color:var(--mute);font-size:12px;letter-spacing:.08em}
-  .go{background:var(--reefer);color:var(--asphalt);border:none;padding:0 16px}
+  .go{background:var(--reefer);color:var(--on-solid);border:none;padding:0 16px}
   .ghost{color:var(--reefer);border-color:var(--reefer);padding:0 14px}
-  .tabs{display:flex;gap:6px;margin-bottom:14px}
-  .tabs button{flex:1;padding:10px 0;font-size:11px;letter-spacing:.1em}
-  .tabs button[aria-selected=true]{background:var(--amber);color:var(--asphalt);border-color:var(--amber)}
-  .presets{display:flex;gap:6px;margin-bottom:12px}
-  .presets button{flex:1;padding:9px 0;font-size:11px;text-transform:uppercase}
-  .presets button[aria-selected=true]{background:var(--amber);color:var(--asphalt);border-color:var(--amber)}
+  .primary{width:100%;padding:13px 0;background:var(--amber);color:var(--on-solid);
+    border:none;font-size:12px;letter-spacing:.12em}
+  .primary:disabled{opacity:.4}
+  .danger{width:100%;padding:11px 0;color:var(--late);border-color:var(--late);
+    background:transparent;font-size:11px;letter-spacing:.08em;margin-top:8px}
+  .muted{width:100%;padding:11px 0;color:var(--mute);border-color:var(--line);
+    background:transparent;font-size:11px;letter-spacing:.08em;margin-top:8px}
+  .danger.armed{background:var(--late);color:var(--on-solid);border-color:var(--late)}
+  .muted.armed{background:var(--mute);color:var(--on-solid);border-color:var(--mute)}
+  .danger:disabled,.muted:disabled{opacity:.3;cursor:default}
   .link{background:none;border:none;color:var(--reefer);font-size:11px;padding:0;
-    text-decoration:underline}
+    text-decoration:underline;font-family:var(--mono)}
 
-  .eta{font-family:var(--mono);font-size:46px;font-weight:700;color:var(--amber);
+  /* primary nav: two tools. filled when active. */
+  .tabs{display:flex;gap:6px;margin-bottom:10px}
+  .tabs button{flex:1;padding:11px 0;font-size:11px;letter-spacing:.12em}
+  .tabs button[aria-selected=true]{background:var(--amber);color:var(--on-solid);
+    border-color:var(--amber)}
+  /* secondary nav: two views of one calculation. outlined, visibly subordinate. */
+  .subtabs{display:flex;gap:6px;margin-bottom:14px}
+  .subtabs button{flex:1;padding:8px 0;font-size:10px;letter-spacing:.08em}
+  .subtabs button[aria-selected=true]{color:var(--amber);border-color:var(--amber)}
+
+  .big{font-family:var(--mono);font-size:46px;font-weight:700;color:var(--amber);
     letter-spacing:-.02em;line-height:1;font-variant-numeric:tabular-nums}
+  .big.done{color:var(--good)}
   .day{font-family:var(--mono);font-size:13px;margin-top:6px}
-  .yours{font-family:var(--mono);font-size:12px;color:var(--mute);margin-top:10px;padding-top:10px;
-    border-top:1px solid var(--line)}
+  .sub{font-family:var(--mono);font-size:12px;color:var(--mute);margin-top:12px;
+    padding-top:12px;border-top:1px solid var(--line);font-variant-numeric:tabular-nums}
+  .sub b{color:var(--ink);font-weight:400}
   .note{font-family:var(--mono);font-size:12px;color:var(--mute);line-height:1.7;margin-top:14px}
+
+  /* ETA run strip: drive legs split by stops */
   .strip{display:flex;height:12px;margin-top:16px;border-radius:3px;overflow:hidden;
     border:1px solid var(--line)}
   .strip i{display:block}
   .strip i.d{background:var(--amber)}
   .strip i.swap{background:var(--reefer);min-width:2px}
   .strip i.fuel{background:var(--amber-dim);min-width:2px}
-  .strip i.rest{background:#3A444C;min-width:2px}
+  .strip i.rest{background:var(--rest);min-width:2px}
   .legend{display:flex;justify-content:space-between;font-family:var(--mono);font-size:10px;
     color:var(--mute);margin-top:6px;letter-spacing:.08em}
-  .cushion{margin-top:14px;padding:10px 12px;border-radius:6px;font-family:var(--mono);font-size:13px}
+
+  /* 34 reset: one bar per hour */
+  .bars{display:flex;gap:2px;height:22px;margin-top:14px}
+  .bars i{flex:1;display:block;border-radius:1px;background:var(--bar-off)}
+  .bars i.on{background:var(--amber)}
+  .bars i.now{background:var(--amber);opacity:.45}
+  .bars.done i.on{background:var(--good)}
+  .scale{display:flex;justify-content:space-between;font-family:var(--mono);font-size:9px;
+    color:var(--mute);margin-top:5px;letter-spacing:.08em}
+
+  .cushion{margin-top:14px;padding:10px 12px;border-radius:6px;font-family:var(--mono);
+    font-size:13px}
   .cushion.ok{background:rgba(79,209,139,.10);border:1px solid var(--good);color:var(--good)}
   .cushion.bad{background:rgba(255,93,82,.10);border:1px solid var(--late);color:var(--late)}
+  [data-theme="day"] .cushion.ok{background:rgba(21,128,61,.08)}
+  [data-theme="day"] .cushion.bad{background:rgba(179,38,30,.08)}
+
   .chip{display:inline-block;font-family:var(--mono);font-size:11px;color:var(--reefer);
     border:1px solid var(--reefer);border-radius:999px;padding:3px 10px;letter-spacing:.04em}
   .chip.grey{color:var(--mute);border-color:var(--mute)}
+  .meta{display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap}
   .err{font-family:var(--mono);font-size:11px;color:var(--late);margin-top:8px}
   .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
-  .meta{display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap}
+  .presets{display:flex;gap:6px;margin-bottom:12px}
+  .presets button{flex:1;padding:9px 0;font-size:11px;text-transform:uppercase;
+    letter-spacing:.08em}
+  .presets button[aria-selected=true]{background:var(--amber);color:var(--on-solid);
+    border-color:var(--amber)}
+
+  .warn{border:1px solid var(--amber-dim);background:var(--warn-bg);border-radius:6px;
+    padding:12px;margin-top:14px;font-family:var(--mono);font-size:11px;color:var(--mute);
+    line-height:1.7}
+  .warn b{color:var(--amber);font-weight:400}
+  .stamp{font-family:var(--mono);font-size:16px;color:var(--ink);margin-top:8px;
+    padding:10px 12px;background:var(--asphalt);border:1px solid var(--line);border-radius:6px;
+    user-select:all;-webkit-user-select:all}
   .foot{font-family:var(--mono);font-size:10px;color:var(--mute);line-height:1.8;margin-top:14px;
     letter-spacing:.03em}
   .hide{display:none !important}
@@ -93,102 +194,202 @@
 </head>
 <body>
 <div class="wrap">
-  <div class="brand"><b>TEAM ETA</b><span>WHEELS NEVER STOP</span></div>
+  <div class="brand">
+    <b>MILESPOST</b>
+    <div class="brand-r">
+      <span class="tag">WHEELS NEVER STOP</span>
+      <button class="switch" id="themeBtn" role="switch" aria-checked="false"
+              aria-label="Switch to day mode">
+        <i class="knob">
+          <svg class="moon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>
+          </svg>
+          <svg class="sun" viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="12" cy="12" r="4.4"/>
+            <path d="M12 1.8v2.6M12 19.6v2.6M4.2 4.2l1.9 1.9M17.9 17.9l1.9 1.9M1.8 12h2.6M19.6 12h2.6M4.2 19.8l1.9-1.9M17.9 6.1l1.9-1.9"/>
+          </svg>
+        </i>
+      </button>
+    </div>
+  </div>
 
   <div class="tabs" role="tablist">
-    <button id="tabQuick" role="tab" aria-selected="true">ESTIMATED ETA</button>
-    <button id="tabTuned" role="tab" aria-selected="false">TUNED MODEL ETA</button>
+    <button id="tabEta"   role="tab" aria-selected="true">ETA</button>
+    <button id="tabReset" role="tab" aria-selected="false">34 RESET</button>
   </div>
 
-  <!-- readout -->
-  <div class="card readout">
-    <div class="lbl" id="etaLabel">Arrival</div>
-    <div class="eta" id="etaClock">--:--</div>
-    <div class="day" id="etaDay">Enter miles and a departure time.</div>
-    <div class="yours hide" id="etaYours"></div>
-    <div class="note hide" id="quickNote"></div>
-    <div class="strip hide" id="strip"></div>
-    <div class="legend hide" id="legend"></div>
-    <div class="cushion hide" id="cushion"></div>
+  <!-- ============================ ETA ============================ -->
+  <div id="viewEta">
+    <div class="subtabs" role="tablist">
+      <button id="tabQuick" role="tab" aria-selected="true">ESTIMATED ETA</button>
+      <button id="tabTuned" role="tab" aria-selected="false">TUNED MODEL ETA</button>
+    </div>
+
+    <div class="card readout">
+      <div class="lbl" id="etaLabel">Arrival</div>
+      <div class="big" id="etaClock">--:--</div>
+      <div class="day" id="etaDay">Enter miles and a departure time.</div>
+      <div class="sub hide" id="etaYours"></div>
+      <div class="note hide" id="quickNote"></div>
+      <div class="strip hide" id="strip"></div>
+      <div class="legend hide" id="legend"></div>
+      <div class="cushion hide" id="cushion"></div>
+    </div>
+
+    <div class="card">
+      <div class="group">
+        <label for="miles">Miles remaining</label>
+        <div class="fieldwrap">
+          <input id="miles" type="number" inputmode="decimal" value="1200">
+          <span class="suffix">mi</span>
+        </div>
+      </div>
+
+      <div class="group">
+        <label for="destIn">Destination town</label>
+        <div class="row">
+          <input id="destIn" placeholder="e.g. Laredo, TX" autocomplete="off">
+          <button class="go" id="destSet">SET</button>
+        </div>
+        <div class="meta hide" id="destMeta"><span class="chip" id="destChip"></span></div>
+        <div class="err hide" id="destErr"></div>
+        <select id="destPick" class="hide" style="margin-top:8px"></select>
+      </div>
+
+      <div class="group">
+        <label for="depart">Rolling out</label>
+        <div class="row">
+          <input id="depart" type="datetime-local">
+          <button class="ghost" id="nowBtn">NOW</button>
+        </div>
+        <div class="meta">
+          <span class="chip grey" id="origChip"></span>
+          <button class="link" id="origToggle">change</button>
+        </div>
+        <div class="row hide" id="origEdit" style="margin-top:8px">
+          <input id="origIn" placeholder="Town, ST" autocomplete="off">
+          <button class="go" id="origSet">SET</button>
+          <button id="origDev" style="padding:0 12px">DEVICE</button>
+        </div>
+        <div class="err hide" id="origErr"></div>
+        <select id="origPick" class="hide" style="margin-top:8px"></select>
+      </div>
+
+      <div class="group">
+        <label for="appt" id="apptLbl">Appointment (optional)</label>
+        <input id="appt" type="datetime-local">
+      </div>
+    </div>
+
+    <div class="card hide" id="panelTuned">
+      <div class="lbl">How you run</div>
+      <div class="presets" id="presets"></div>
+      <div class="note" id="runNote" style="margin-top:0"></div>
+      <button class="link" id="tuneToggle" style="margin-top:12px">+ TUNE TO YOUR TRUCK</button>
+      <div class="grid hide" id="tuneGrid">
+        <div><div class="lbl">Cruise</div><div class="fieldwrap"><input id="mph" type="number" inputmode="decimal"><span class="suffix">mph</span></div></div>
+        <div><div class="lbl">Fuel every</div><div class="fieldwrap"><input id="fuelEvery" type="number" inputmode="decimal"><span class="suffix">mi</span></div></div>
+        <div><div class="lbl">Fuel stop</div><div class="fieldwrap"><input id="fuelMin" type="number" inputmode="decimal"><span class="suffix">min</span></div></div>
+        <div><div class="lbl">Swap takes</div><div class="fieldwrap"><input id="swapMin" type="number" inputmode="decimal"><span class="suffix">min</span></div></div>
+        <div><div class="lbl">Stretch every</div><div class="fieldwrap"><input id="restEvery" type="number" inputmode="decimal"><span class="suffix">hr</span></div></div>
+        <div><div class="lbl">Stretch stop</div><div class="fieldwrap"><input id="restMin" type="number" inputmode="decimal"><span class="suffix">min</span></div></div>
+      </div>
+      <div class="hide" id="swapBox">
+        <div class="lbl" style="margin-top:16px">Swap schedule — fixed clock, wherever you are</div>
+        <div class="grid" style="margin-top:0">
+          <div><input id="swapA" type="time"></div>
+          <div><input id="swapB" type="time"></div>
+        </div>
+        <select id="swapTz" style="margin-top:10px"></select>
+      </div>
+    </div>
+
+    <div class="foot">Team math — no 10-hour reset built in. Each of you still owes the 11/14
+      and the 70-hour cycle, so check your clocks on long runs before you trust this number.</div>
   </div>
 
-  <!-- the load -->
-  <div class="card">
-    <div class="group">
-      <label for="miles">Miles remaining</label>
-      <div class="fieldwrap">
-        <input id="miles" type="number" inputmode="decimal" value="1200">
-        <span class="suffix">mi</span>
+  <!-- ========================== 34 RESET ========================== -->
+  <div id="viewReset" class="hide">
+    <div class="card readout" id="rsReadout">
+      <div class="lbl" id="rsLabel">Legal at</div>
+      <div class="big" id="rsClock">--:--</div>
+      <div class="day" id="rsDay">Set the time you shut down.</div>
+      <div class="sub hide" id="rsCount"></div>
+      <div class="bars hide" id="bars"></div>
+      <div class="scale hide" id="rsScale"><span>SHUT DOWN</span><span>17H</span><span>34H</span></div>
+    </div>
+
+    <div class="card">
+      <div class="group">
+        <label for="shut">Shut down</label>
+        <div class="row">
+          <input id="shut" type="datetime-local">
+          <button class="ghost" id="rsNow">NOW</button>
+        </div>
+        <div class="meta">
+          <span class="chip grey" id="rsChip"></span>
+          <button class="link" id="rsToggle">change</button>
+        </div>
+        <div class="row hide" id="rsEdit" style="margin-top:8px">
+          <input id="rsIn" placeholder="Town, ST" autocomplete="off">
+          <button class="go" id="rsSet">SET</button>
+          <button id="rsDev" style="padding:0 12px">DEVICE</button>
+        </div>
+        <div class="err hide" id="rsErr"></div>
+        <select id="rsPick" class="hide" style="margin-top:8px"></select>
       </div>
     </div>
 
-    <div class="group">
-      <label for="destIn">Destination town</label>
-      <div class="row">
-        <input id="destIn" placeholder="e.g. Laredo, TX" autocomplete="off">
-        <button class="go" id="destSet">SET</button>
+    <div class="card">
+      <button class="primary" id="icsBtn" disabled>ADD ALARM TO CALENDAR</button>
+      <div class="foot" style="margin-top:10px">
+        No web app can wake your phone on its own. This hands a real alarm to your Calendar,
+        which fires whether MilesPost is open, closed, or deleted.
       </div>
-      <div class="meta hide" id="destMeta"><span class="chip" id="destChip"></span></div>
-      <div class="err hide" id="destErr"></div>
-      <select id="destPick" class="hide" style="margin-top:8px"></select>
+      <div class="warn hide" id="frameWarn">
+        <b>You're viewing this inside an app preview.</b> Previews block downloads, so the
+        calendar handoff won't fire here. Open the page in Safari or Chrome and it'll work.
+      </div>
+      <div class="hide" id="manual">
+        <div class="lbl" style="margin-top:14px">Or set an alarm by hand for</div>
+        <div class="stamp" id="stamp"></div>
+      </div>
+      <button class="danger" id="rsBroke">BROKE THE 34 — RESTART FROM NOW</button>
+      <button class="muted" id="rsClear">CLEAR TIMER</button>
     </div>
 
-    <div class="group">
-      <label for="depart">Rolling out</label>
-      <div class="row">
-        <input id="depart" type="datetime-local">
-        <button class="ghost" id="nowBtn">NOW</button>
-      </div>
-      <div class="meta">
-        <span class="chip grey" id="origChip"></span>
-        <button class="link" id="origToggle">change</button>
-      </div>
-      <div class="row hide" id="origEdit" style="margin-top:8px">
-        <input id="origIn" placeholder="Town, ST" autocomplete="off">
-        <button class="go" id="origSet">SET</button>
-        <button id="origDev" style="padding:0 12px">DEVICE</button>
-      </div>
-      <div class="err hide" id="origErr"></div>
-      <select id="origPick" class="hide" style="margin-top:8px"></select>
+    <div class="warn">
+      <b>It has to be 34 consecutive hours off duty.</b> Going on duty for even a minute —
+      moving the truck, a quick pre-trip, signing something — starts the whole thing over
+      from zero. If that happens, hit restart above.
     </div>
 
-    <div class="group" style="margin-bottom:0">
-      <label for="appt" id="apptLbl">Appointment (optional)</label>
-      <input id="appt" type="datetime-local">
-    </div>
+    <div class="foot">34-hour restart under 395.3(c). Counts 34 real elapsed hours, so it stays
+      right across a DST change.</div>
   </div>
 
-  <!-- how you run -->
-  <div class="card hide" id="panelTuned">
-    <div class="lbl">How you run</div>
-    <div class="presets" id="presets"></div>
-    <div class="note" id="runNote"></div>
-    <button class="link" id="tuneToggle" style="margin-top:12px">+ TUNE TO YOUR TRUCK</button>
-    <div class="grid hide" id="tuneGrid">
-      <div><div class="lbl">Cruise</div><div class="fieldwrap"><input id="mph" type="number" inputmode="decimal"><span class="suffix">mph</span></div></div>
-      <div><div class="lbl">Fuel every</div><div class="fieldwrap"><input id="fuelEvery" type="number" inputmode="decimal"><span class="suffix">mi</span></div></div>
-      <div><div class="lbl">Fuel stop</div><div class="fieldwrap"><input id="fuelMin" type="number" inputmode="decimal"><span class="suffix">min</span></div></div>
-      <div><div class="lbl">Swap takes</div><div class="fieldwrap"><input id="swapMin" type="number" inputmode="decimal"><span class="suffix">min</span></div></div>
-      <div><div class="lbl">Stretch every</div><div class="fieldwrap"><input id="restEvery" type="number" inputmode="decimal"><span class="suffix">hr</span></div></div>
-      <div><div class="lbl">Stretch stop</div><div class="fieldwrap"><input id="restMin" type="number" inputmode="decimal"><span class="suffix">min</span></div></div>
-    </div>
-    <div class="hide" id="swapBox">
-      <div class="lbl" style="margin-top:16px">Swap schedule — fixed clock, wherever you are</div>
-      <div class="grid" style="margin-top:0">
-        <div><input id="swapA" type="time"></div>
-        <div><input id="swapB" type="time"></div>
-      </div>
-      <select id="swapTz" style="margin-top:10px"></select>
-    </div>
-  </div>
-
-  <div class="foot">Team math — no 10-hour reset built in. Each of you still owes the 11/14 and the
-    70-hour cycle, so check your clocks on long runs before you trust this number.
-    <span style="opacity:.55"> · v1.1.1</span></div>
+  <div class="foot" style="text-align:center;opacity:.55">MilesPost v2.0</div>
 </div>
 
 <script>
-/* ---------------- timezone data (fully offline) ---------------- */
+/* ======================= theme ======================= */
+const THEME_KEY = "milespost.theme";
+let theme = document.documentElement.getAttribute("data-theme") || "night";
+const applyTheme = t => {
+  theme = t;
+  document.documentElement.setAttribute("data-theme", t);
+  const b = document.getElementById("themeBtn");
+  b.setAttribute("aria-checked", String(t === "day"));
+  b.setAttribute("aria-label", t === "day" ? "Switch to night mode" : "Switch to day mode");
+  const m = document.querySelector('meta[name=theme-color]');
+  if(m) m.setAttribute("content", t === "day" ? "#F2F4F7" : "#0B0E10");
+  try{ localStorage.setItem(THEME_KEY, t); }catch{}
+};
+document.getElementById("themeBtn").onclick = () =>
+  applyTheme(theme === "day" ? "night" : "day");
+applyTheme(theme);
+
+/* ======================= timezone resolver ======================= */
 const Z = { E:"America/New_York", C:"America/Chicago", M:"America/Denver",
   P:"America/Los_Angeles", AZ:"America/Phoenix", AK:"America/Anchorage", HI:"Pacific/Honolulu" };
 
@@ -200,7 +401,6 @@ const STATE_TZ = {
   CA:"P",WA:"P",NV:"P",
   AZ:"AZ",AK:"AK",HI:"HI"
 };
-
 const SPLIT = {
   TX:{def:"C",cities:{"el paso":"M",socorro:"M","horizon city":"M",anthony:"M",fabens:"M",
       "van horn":"M","sierra blanca":"M"}},
@@ -230,7 +430,6 @@ const SPLIT = {
   OR:{def:"P",cities:{ontario:"M"}},
   MI:{def:"E",cities:{menominee:"C","iron mountain":"C",ironwood:"C",escanaba:"E"}}
 };
-
 const STATE_NAMES = {alabama:"AL",alaska:"AK",arizona:"AZ",arkansas:"AR",california:"CA",
   colorado:"CO",connecticut:"CT",delaware:"DE",florida:"FL",georgia:"GA",hawaii:"HI",idaho:"ID",
   illinois:"IL",indiana:"IN",iowa:"IA",kansas:"KS",kentucky:"KY",louisiana:"LA",maine:"ME",
@@ -274,7 +473,7 @@ function resolvePlace(raw){
   return null;
 }
 
-/* ---------------- time math ---------------- */
+/* ======================= time helpers ======================= */
 const deviceTz = () => { try{ return Intl.DateTimeFormat().resolvedOptions().timeZone; }
   catch{ return "America/New_York"; } };
 const tzTag = tz => { try{
@@ -308,19 +507,32 @@ const dayOf = (d,tz) => new Intl.DateTimeFormat("en-US",{timeZone:tz,weekday:"sh
   month:"short",day:"numeric"}).format(d);
 const hm = h => { const s=Math.round(Math.abs(h)*60);
   return Math.floor(s/60)+"h "+String(s%60).padStart(2,"0")+"m"; };
+const hms = ms => {
+  const t = Math.max(0, Math.floor(ms/1000));
+  return Math.floor(t/3600)+"h "+String(Math.floor(t%3600/60)).padStart(2,"0")+"m "+
+    String(t%60).padStart(2,"0")+"s";
+};
 
-/* ---------------- state ---------------- */
+const $ = id => document.getElementById(id);
+const show = (el,on) => el.classList.toggle("hide", !on);
+const inFrame = (()=>{ try{ return window.self !== window.top; } catch { return true; } })();
+
+// Old keys are read once so a rename never costs the driver their settings.
+const loadJSON = (...keys) => {
+  for(const k of keys){
+    try{ const v = localStorage.getItem(k); if(v) return JSON.parse(v); }catch{}
+  }
+  return null;
+};
+
+/* ======================= ETA ======================= */
+const RATE = 50;                      // dispatch always plans at miles ÷ 50
 const PRESETS = {
   Conservative:{mph:64,fuelEvery:500,fuelMin:15,swapMin:40,restEvery:4,restMin:20},
   Realistic:{mph:65,fuelEvery:650,fuelMin:15,swapMin:35,restEvery:5,restMin:20},
   Push:{mph:68,fuelEvery:800,fuelMin:20,swapMin:30,restEvery:6,restMin:15}
 };
-// Bump when PRESETS change: forces saved copies on existing phones to refresh,
-// instead of the old defaults overriding the new ones from localStorage.
-const PRESET_VERSION = 3;
-
-/* Driver swaps run on a fixed clock, not on mileage — 06:00 and 18:00 Eastern, no matter
-   where the truck is. Anchored to a chosen zone so the schedule doesn't drift westward. */
+const PRESET_VERSION = 3;             // bump when PRESETS change, or saved copies override them
 const SWAP_DEFAULT = { times:["06:00","18:00"], tz:"America/New_York" };
 
 // Every instant in (start, end] where the wall clock in `tz` hits one of `times`.
@@ -341,205 +553,171 @@ function swapTimes(start, end, tz, times){
   }
   return out.sort((a,b)=>a-b);
 }
-// Dispatch always plans at miles ÷ 50. Fixed, not a setting.
-const RATE = 50;
 
-const S = {
+const E = {
   mode:"quick", preset:"Realistic", p:{...PRESETS.Realistic},
   swap:{...SWAP_DEFAULT, times:[...SWAP_DEFAULT.times]},
   originTz:deviceTz(), originName:"Your device", destTz:null, destName:""
 };
-try{
-  const saved = JSON.parse(localStorage.getItem("teamEta")||"null");
-  if(saved){
-    // Always keep what's personal to the driver.
-    S.mode = saved.mode ?? S.mode;
-    if(saved.swap && Array.isArray(saved.swap.times)) S.swap = saved.swap;
-    // Only keep tuning if it was saved against the current preset set.
-    if(saved.pv === PRESET_VERSION){
-      S.preset = saved.preset ?? S.preset;
-      S.p = saved.p ?? S.p;
-    }
-  }
-}catch{}
-const save = () => { try{ localStorage.setItem("teamEta",
-  JSON.stringify({pv:PRESET_VERSION, mode:S.mode, preset:S.preset, p:S.p,
-                  swap:S.swap})); }catch{} };
+(()=>{
+  const s = loadJSON("milespost.eta", "teamEta");
+  if(!s) return;
+  E.mode = s.mode ?? E.mode;
+  if(s.swap && Array.isArray(s.swap.times)) E.swap = s.swap;
+  if(s.pv === PRESET_VERSION){ E.preset = s.preset ?? E.preset; E.p = s.p ?? E.p; }
+})();
+const saveEta = () => { try{ localStorage.setItem("milespost.eta",
+  JSON.stringify({pv:PRESET_VERSION, mode:E.mode, preset:E.preset, p:E.p, swap:E.swap}));
+}catch{} };
 
-const $ = id => document.getElementById(id);
-const show = (el,on) => el.classList.toggle("hide", !on);
-
-/* ---------------- build controls ---------------- */
 ZONE_LIST.forEach(z=>{
-  for(const sel of [$("destPick"),$("origPick")]){
-    const o=document.createElement("option"); o.value=z; o.textContent=tzTag(z)+" — "+z;
-    sel.appendChild(o);
-  }
+  [["destPick", tzTag(z)+" — "+z], ["origPick", tzTag(z)+" — "+z],
+   ["swapTz", "Swaps on "+tzTag(z)]].forEach(([id,text])=>{
+    const o=document.createElement("option"); o.value=z; o.textContent=text; $(id).appendChild(o);
+  });
 });
 Object.keys(PRESETS).forEach(k=>{
   const b=document.createElement("button"); b.textContent=k; b.dataset.k=k;
-  b.onclick=()=>{ S.preset=k; S.p={...PRESETS[k]}; syncTune(); save(); render(); };
+  b.onclick=()=>{ E.preset=k; E.p={...PRESETS[k]}; syncTune(); saveEta(); renderEta(); };
   $("presets").appendChild(b);
 });
+const TUNE_KEYS = ["mph","fuelEvery","fuelMin","swapMin","restEvery","restMin"];
 const syncTune = () => {
-  ["mph","fuelEvery","fuelMin","swapMin","restEvery","restMin"].forEach(k=>{ $(k).value = S.p[k]; });
+  TUNE_KEYS.forEach(k=>{ $(k).value = E.p[k]; });
   [...$("presets").children].forEach(b =>
-    b.setAttribute("aria-selected", String(b.dataset.k===S.preset)));
+    b.setAttribute("aria-selected", String(b.dataset.k===E.preset)));
 };
-["mph","fuelEvery","fuelMin","swapMin","restEvery","restMin"].forEach(k=>{
+TUNE_KEYS.forEach(k=>{
   $(k).addEventListener("input", e=>{
-    S.p[k] = e.target.value==="" ? "" : Number(e.target.value);
-    S.preset="Custom"; syncTune(); save(); render();
+    E.p[k] = e.target.value==="" ? "" : Number(e.target.value);
+    E.preset="Custom"; syncTune(); saveEta(); renderEta();
   });
 });
-
-/* swap schedule */
-ZONE_LIST.forEach(z=>{
-  const o=document.createElement("option"); o.value=z; o.textContent="Swaps on "+tzTag(z);
-  $("swapTz").appendChild(o);
-});
 const syncSwap = () => {
-  $("swapA").value = S.swap.times[0];
-  $("swapB").value = S.swap.times[1];
-  $("swapTz").value = S.swap.tz;
+  $("swapA").value = E.swap.times[0];
+  $("swapB").value = E.swap.times[1];
+  $("swapTz").value = E.swap.tz;
 };
-$("swapA").addEventListener("input", e=>{
-  if(e.target.value){ S.swap.times[0]=e.target.value; save(); render(); }
-});
-$("swapB").addEventListener("input", e=>{
-  if(e.target.value){ S.swap.times[1]=e.target.value; save(); render(); }
-});
-$("swapTz").addEventListener("change", e=>{ S.swap.tz=e.target.value; save(); render(); });
-$("miles").addEventListener("input", render);
-$("appt").addEventListener("input", render);
-$("depart").addEventListener("input", render);
-$("nowBtn").onclick = ()=>{ $("depart").value = toWall(new Date(), S.originTz); render(); };
+$("swapA").addEventListener("input", e=>{ if(e.target.value){ E.swap.times[0]=e.target.value; saveEta(); renderEta(); }});
+$("swapB").addEventListener("input", e=>{ if(e.target.value){ E.swap.times[1]=e.target.value; saveEta(); renderEta(); }});
+$("swapTz").addEventListener("change", e=>{ E.swap.tz=e.target.value; saveEta(); renderEta(); });
+
+["miles","appt","depart"].forEach(id => $(id).addEventListener("input", renderEta));
+$("nowBtn").onclick = ()=>{ $("depart").value = toWall(new Date(), E.originTz); renderEta(); };
 $("tuneToggle").onclick = ()=>{
   const on = $("tuneGrid").classList.contains("hide");
-  show($("tuneGrid"), on);
-  show($("swapBox"), on);
+  show($("tuneGrid"), on); show($("swapBox"), on);
   $("tuneToggle").textContent = on ? "− HIDE TUNING" : "+ TUNE TO YOUR TRUCK";
 };
-const setMode = m => {
-  S.mode=m; save();
-  $("tabQuick").setAttribute("aria-selected", String(m==="quick"));
-  $("tabTuned").setAttribute("aria-selected", String(m==="tuned"));
-  show($("panelTuned"), m==="tuned");
-  render();
-};
-$("tabQuick").onclick = ()=>setMode("quick");
-$("tabTuned").onclick = ()=>setMode("tuned");
 
-/* destination */
-const doDest = () => {
+const doDest = ()=>{
   const raw = $("destIn").value.trim();
   if(!raw) return;
   const r = resolvePlace(raw);
-  if(r){
-    S.destTz=r.tz; S.destName=r.place;
-    show($("destErr"),false); show($("destPick"),false);
-  } else {
+  if(r){ E.destTz=r.tz; E.destName=r.place; show($("destErr"),false); show($("destPick"),false); }
+  else {
     show($("destErr"),true);
     $("destErr").textContent = "Couldn't place that. Add the state (\"Laredo, TX\"), or pick a zone:";
     show($("destPick"),true);
   }
-  render();
+  renderEta();
 };
 $("destSet").onclick = doDest;
 $("destIn").addEventListener("keydown", e=>{ if(e.key==="Enter") doDest(); });
-$("destPick").onchange = e=>{ S.destTz=e.target.value; S.destName="";
-  show($("destErr"),false); show($("destPick"),false); render(); };
+$("destPick").onchange = e=>{ E.destTz=e.target.value; E.destName="";
+  show($("destErr"),false); show($("destPick"),false); renderEta(); };
 
-/* origin */
 $("origToggle").onclick = ()=>{
   const on = $("origEdit").classList.contains("hide");
   show($("origEdit"), on);
   $("origToggle").textContent = on ? "close" : "change";
 };
-const doOrig = () => {
+const setOrigin = (tz,name)=>{
+  E.originTz=tz; E.originName=name;
+  $("origIn").value=""; show($("origEdit"),false); $("origToggle").textContent="change";
+  show($("origErr"),false); show($("origPick"),false);
+  renderEta();
+};
+const doOrig = ()=>{
   const raw = $("origIn").value.trim();
   if(!raw) return;
   const r = resolvePlace(raw);
-  if(r){
-    S.originTz=r.tz; S.originName=r.place;
-    $("origIn").value=""; show($("origEdit"),false); $("origToggle").textContent="change";
-    show($("origErr"),false); show($("origPick"),false);
-  } else {
+  if(r) setOrigin(r.tz, r.place);
+  else {
     show($("origErr"),true);
     $("origErr").textContent = "Couldn't place that — add the state, or pick a zone:";
     show($("origPick"),true);
   }
-  render();
 };
 $("origSet").onclick = doOrig;
 $("origIn").addEventListener("keydown", e=>{ if(e.key==="Enter") doOrig(); });
-$("origDev").onclick = ()=>{
-  S.originTz=deviceTz(); S.originName="Your device";
-  show($("origEdit"),false); $("origToggle").textContent="change";
-  show($("origErr"),false); show($("origPick"),false); render();
-};
-$("origPick").onchange = e=>{ S.originTz=e.target.value; S.originName="Manual";
-  show($("origErr"),false); show($("origPick"),false); show($("origEdit"),false);
-  $("origToggle").textContent="change"; render(); };
+$("origDev").onclick = ()=> setOrigin(deviceTz(), "Your device");
+$("origPick").onchange = e=> setOrigin(e.target.value, "Manual");
 
-/* ---------------- render ---------------- */
-function render(){
-  const showTz = S.destTz || S.originTz;
-  $("origChip").textContent = S.originName + " · " + tzTag(S.originTz);
-  show($("destMeta"), !!S.destName);
-  if(S.destName) $("destChip").textContent = S.destName + " · " + tzTag(S.destTz);
+const setEtaMode = m => {
+  E.mode=m; saveEta();
+  $("tabQuick").setAttribute("aria-selected", String(m==="quick"));
+  $("tabTuned").setAttribute("aria-selected", String(m==="tuned"));
+  show($("panelTuned"), m==="tuned");
+  renderEta();
+};
+$("tabQuick").onclick = ()=>setEtaMode("quick");
+$("tabTuned").onclick = ()=>setEtaMode("tuned");
+
+function renderEta(){
+  const showTz = E.destTz || E.originTz;
+  $("origChip").textContent = E.originName + " · " + tzTag(E.originTz);
+  show($("destMeta"), !!E.destName);
+  if(E.destName) $("destChip").textContent = E.destName + " · " + tzTag(E.destTz);
   $("apptLbl").textContent = "Appointment · " + tzTag(showTz) + " (optional)";
-  $("etaLabel").textContent = "Arrival · " + (S.destName
-    ? S.destName + " · " + tzTag(S.destTz)
-    : S.destTz ? "Destination · " + tzTag(S.destTz)
-    : "Your clock · " + tzTag(S.originTz) + " — set a destination below");
+  $("etaLabel").textContent = "Arrival · " + (E.destName
+    ? E.destName + " · " + tzTag(E.destTz)
+    : E.destTz ? "Destination · " + tzTag(E.destTz)
+    : "Your clock · " + tzTag(E.originTz) + " — set a destination below");
 
   const M = Number($("miles").value) || 0;
-  const start = fromWall($("depart").value, S.originTz);
-  const ready = M > 0 && start;
-
+  const start = fromWall($("depart").value, E.originTz);
   ["etaYours","quickNote","strip","legend","cushion"].forEach(id=>show($(id),false));
-  if(!ready){
+  if(!(M > 0 && start)){
     $("etaClock").textContent = "--:--";
     $("etaDay").textContent = "Enter miles and a departure time.";
     return;
   }
 
-  const mph = Number(S.p.mph)||1;
+  const mph = Number(E.p.mph)||1;
   const driveH = M/mph;
-  const fuelStops = Math.max(0, Math.ceil(M/(Number(S.p.fuelEvery)||9999))-1);
+  const fuelStops = Math.max(0, Math.ceil(M/(Number(E.p.fuelEvery)||9999))-1);
 
   /* Swaps land on a fixed clock, so their count depends on the arrival time — which
-     depends on how many swaps we took. Iterate to a fixed point. Each pass can only add
-     stops, so this converges (fast: 2-3 passes). */
+     depends on how many swaps we took. Iterate to a fixed point; each pass only adds
+     stops, so it converges (2-3 passes). */
   let totalH = driveH, swaps = [], restStops = 0, stopH = 0;
   for(let i=0;i<8;i++){
     const end = new Date(start.getTime() + totalH*3600e3);
-    swaps = swapTimes(start, end, S.swap.tz, S.swap.times);
+    swaps = swapTimes(start, end, E.swap.tz, E.swap.times);
     restStops = Math.max(0,
-      Math.ceil(driveH/(Number(S.p.restEvery)||999)) - 1 - fuelStops - swaps.length);
-    stopH = (swaps.length*(Number(S.p.swapMin)||0)
-           + fuelStops*(Number(S.p.fuelMin)||0)
-           + restStops*(Number(S.p.restMin)||0)) / 60;
+      Math.ceil(driveH/(Number(E.p.restEvery)||999)) - 1 - fuelStops - swaps.length);
+    stopH = (swaps.length*(Number(E.p.swapMin)||0)
+           + fuelStops*(Number(E.p.fuelMin)||0)
+           + restStops*(Number(E.p.restMin)||0)) / 60;
     const next = driveH + stopH;
     if(Math.abs(next-totalH) < 1e-4){ totalH = next; break; }
     totalH = next;
   }
   const tunedEta = new Date(start.getTime() + totalH*3600e3);
-
   const quickH = M/RATE;
   const quickEta = new Date(start.getTime() + quickH*3600e3);
+  const eta = E.mode==="quick" ? quickEta : tunedEta;
 
-  const eta = S.mode==="quick" ? quickEta : tunedEta;
   $("etaClock").textContent = clockOf(eta, showTz);
   $("etaDay").textContent = dayOf(eta, showTz);
 
-  if(S.destTz && S.destTz !== S.originTz){
+  if(E.destTz && E.destTz !== E.originTz){
     show($("etaYours"), true);
-    $("etaYours").textContent = clockOf(eta, S.originTz)+" "+tzTag(S.originTz)+" · your clock";
+    $("etaYours").textContent = clockOf(eta, E.originTz)+" "+tzTag(E.originTz)+" · your clock";
   }
 
-  if(S.mode==="quick"){
+  if(E.mode==="quick"){
     const diffH = (tunedEta-quickEta)/3600e3;
     show($("quickNote"), true);
     $("quickNote").innerHTML = M+" mi ÷ "+RATE+" = <span style='color:var(--ink)'>"+hm(quickH)+
@@ -548,12 +726,12 @@ function render(){
   } else {
     // Lay every stop on the timeline: swaps by clock, fuel by odometer, stretches evenly.
     const stops = [];
-    swaps.forEach(t => stops.push({k:"swap", min:Number(S.p.swapMin)||0,
+    swaps.forEach(t => stops.push({k:"swap", min:Number(E.p.swapMin)||0,
       at:(t-start)/3600e3/totalH}));
     for(let i=1;i<=fuelStops;i++)
-      stops.push({k:"fuel", min:Number(S.p.fuelMin)||0, at:i*Number(S.p.fuelEvery)/M});
+      stops.push({k:"fuel", min:Number(E.p.fuelMin)||0, at:i*Number(E.p.fuelEvery)/M});
     for(let i=1;i<=restStops;i++)
-      stops.push({k:"rest", min:Number(S.p.restMin)||0, at:i/(restStops+1)});
+      stops.push({k:"rest", min:Number(E.p.restMin)||0, at:i/(restStops+1)});
     stops.sort((a,b)=>a.at-b.at);
 
     let html="";
@@ -565,11 +743,10 @@ function render(){
     show($("strip"), true); show($("legend"), true);
     $("legend").innerHTML = "<span>ROLLING "+hm(driveH)+"</span><span>STOPPED "+hm(stopH)+
       "</span><span>"+(M/totalH).toFixed(1)+" MPH AVG</span>";
-
-    const sw = S.swap.times.join(" / ")+" "+tzTag(S.swap.tz);
     $("runNote").innerHTML =
-      S.p.mph+" mph cruise · fuel every "+S.p.fuelEvery+" mi ("+S.p.fuelMin+" min) · swap "+
-      sw+" ("+S.p.swapMin+" min) · stretch every "+S.p.restEvery+" h ("+S.p.restMin+" min)"+
+      E.p.mph+" mph cruise · fuel every "+E.p.fuelEvery+" mi ("+E.p.fuelMin+" min) · swap "+
+      E.swap.times.join(" / ")+" "+tzTag(E.swap.tz)+" ("+E.p.swapMin+" min) · stretch every "+
+      E.p.restEvery+" h ("+E.p.restMin+" min)"+
       "<br>This run: "+swaps.length+" swap"+(swaps.length===1?"":"s")+", "+
       fuelStops+" fuel stop"+(fuelStops===1?"":"s")+", "+
       restStops+" short stop"+(restStops===1?"":"s");
@@ -587,19 +764,213 @@ function render(){
   }
 }
 
-/* boot */
-$("depart").value = toWall(new Date(), S.originTz);
+/* ======================= 34 RESET ======================= */
+const RESET_HOURS = 34;
+const R = { shutMs:null, tz:deviceTz(), tzName:"Your device" };
+(()=>{
+  const s = loadJSON("milespost.reset", "teamEta34");
+  if(!s) return;
+  if(typeof s.shutMs === "number") R.shutMs = s.shutMs;
+  if(s.tz) R.tz = s.tz;
+  if(s.tzName) R.tzName = s.tzName;
+})();
+const saveReset = () => { try{ localStorage.setItem("milespost.reset",
+  JSON.stringify({shutMs:R.shutMs, tz:R.tz, tzName:R.tzName})); }catch{} };
+
+ZONE_LIST.forEach(z=>{
+  const o=document.createElement("option"); o.value=z; o.textContent=tzTag(z)+" — "+z;
+  $("rsPick").appendChild(o);
+});
+for(let i=0;i<RESET_HOURS;i++) $("bars").appendChild(document.createElement("i"));
+show($("frameWarn"), inFrame);
+
+/* The field is a wall clock in R.tz — the local time where you shut down. Changing the
+   zone therefore re-reads that same clock face in the new zone. */
+const applyRsTz = (tz,name)=>{
+  R.tz=tz; R.tzName=name;
+  const d = fromWall($("shut").value, R.tz);
+  if(d) R.shutMs = d.getTime();
+  $("rsIn").value=""; show($("rsEdit"),false); $("rsToggle").textContent="change";
+  show($("rsErr"),false); show($("rsPick"),false);
+  saveReset(); renderReset();
+};
+$("shut").addEventListener("input", e=>{
+  const d = fromWall(e.target.value, R.tz);
+  if(d){ R.shutMs = d.getTime(); saveReset(); renderReset(); }
+});
+const rsSetNow = ()=>{
+  R.shutMs = Date.now();
+  $("shut").value = toWall(new Date(R.shutMs), R.tz);
+  saveReset(); renderReset();
+};
+$("rsNow").onclick = rsSetNow;
+$("rsToggle").onclick = ()=>{
+  const on = $("rsEdit").classList.contains("hide");
+  show($("rsEdit"), on);
+  $("rsToggle").textContent = on ? "close" : "change";
+};
+const doRs = ()=>{
+  const raw = $("rsIn").value.trim();
+  if(!raw) return;
+  const r = resolvePlace(raw);
+  if(r) applyRsTz(r.tz, r.place);
+  else {
+    show($("rsErr"),true);
+    $("rsErr").textContent = "Couldn't place that. Add the state (\"Laredo, TX\"), or pick a zone:";
+    show($("rsPick"),true);
+  }
+};
+$("rsSet").onclick = doRs;
+$("rsIn").addEventListener("keydown", e=>{ if(e.key==="Enter") doRs(); });
+$("rsDev").onclick = ()=> applyRsTz(deviceTz(), "Your device");
+$("rsPick").onchange = e=> applyRsTz(e.target.value, "Manual");
+
+// Only meaningful if a 34 is actually running. Starting one is what NOW is for.
+const rsRestart = ()=>{ if(!R.shutMs) return; rsSetNow(); };
+const rsClearAll = ()=>{
+  if(!R.shutMs) return;
+  R.shutMs = null;
+  $("shut").value = "";
+  show($("manual"), false);
+  saveReset(); renderReset();
+};
+/* These throw away a clock you may have run for a day and a half. One tap arms,
+   second commits, disarms itself after 3 seconds. */
+function twoTap(btn, idle, armedLabel, action){
+  let armed = false, t = null;
+  const disarm = ()=>{ armed=false; btn.textContent=idle; btn.classList.remove("armed"); };
+  btn.onclick = ()=>{
+    if(btn.disabled) return;
+    if(!armed){
+      armed = true; btn.textContent = armedLabel; btn.classList.add("armed");
+      t = setTimeout(disarm, 3000);
+      return;
+    }
+    clearTimeout(t); disarm(); action();
+  };
+  return { disarm };
+}
+const brokeGuard = twoTap($("rsBroke"), "BROKE THE 34 — RESTART FROM NOW",
+  "TAP AGAIN TO RESTART FROM NOW", rsRestart);
+const clearGuard = twoTap($("rsClear"), "CLEAR TIMER", "TAP AGAIN TO CLEAR", rsClearAll);
+
+const icsStamp = d => d.toISOString().replace(/[-:]/g,"").split(".")[0]+"Z";
+const esc = s => s.replace(/([,;\\])/g,"\\$1");
+$("icsBtn").onclick = ()=>{
+  if(!R.shutMs) return;
+  const legal = new Date(R.shutMs + RESET_HOURS*3600e3);
+  const end = new Date(legal.getTime() + 15*60e3);
+  const started = clockOf(new Date(R.shutMs), R.tz)+" "+dayOf(new Date(R.shutMs), R.tz);
+  const ics = [
+    "BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//MilesPost//34 Reset//EN",
+    "CALSCALE:GREGORIAN","METHOD:PUBLISH","BEGIN:VEVENT",
+    "UID:reset34-"+R.shutMs+"@milespost",
+    "DTSTAMP:"+icsStamp(new Date()),
+    "DTSTART:"+icsStamp(legal),
+    "DTEND:"+icsStamp(end),
+    "SUMMARY:70 hours restored - back on duty",
+    "DESCRIPTION:"+esc("34-hour restart complete. Shut down "+started+" "+tzTag(R.tz)+"."),
+    "BEGIN:VALARM","TRIGGER:-PT30M","ACTION:DISPLAY",
+    "DESCRIPTION:70 hours restored in 30 minutes","END:VALARM",
+    "BEGIN:VALARM","TRIGGER:PT0S","ACTION:DISPLAY",
+    "DESCRIPTION:70 hours restored - you are legal","END:VALARM",
+    "END:VEVENT","END:VCALENDAR"
+  ].join("\r\n");
+
+  show($("manual"), true);   // the number stays on screen even if the handoff is blocked
+
+  const a = document.createElement("a");
+  try{
+    if(!inFrame && typeof URL.createObjectURL === "function" && "download" in a){
+      const url = URL.createObjectURL(new Blob([ics], {type:"text/calendar;charset=utf-8"}));
+      a.href = url; a.download = "34-reset.ics";
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(()=>URL.revokeObjectURL(url), 1000);
+      return;
+    }
+  }catch(e){ /* fall through */ }
+  try{
+    if(!inFrame) location.href = "data:text/calendar;charset=utf-8," + encodeURIComponent(ics);
+  }catch(e){ /* the stamp above is the last resort */ }
+};
+
+function renderReset(){
+  $("rsChip").textContent = R.tzName + " · " + tzTag(R.tz);
+  $("rsPick").value = R.tz;
+
+  if(!R.shutMs){
+    $("rsLabel").textContent = "Legal at";
+    $("rsClock").textContent = "--:--";
+    $("rsDay").textContent = "Set the time you shut down.";
+    ["rsCount","bars","rsScale","manual"].forEach(id=>show($(id), false));
+    $("icsBtn").disabled = true;
+    $("rsBroke").disabled = true; brokeGuard.disarm();
+    $("rsClear").disabled = true; clearGuard.disarm();
+    return;
+  }
+  $("icsBtn").disabled = false;
+  $("rsBroke").disabled = false;
+  $("rsClear").disabled = false;
+
+  const shut  = new Date(R.shutMs);
+  const legal = new Date(R.shutMs + RESET_HOURS*3600e3);
+  const now = Date.now();
+  const elapsedH = (now - R.shutMs)/3600e3;
+  const done = now >= legal.getTime();
+  const pending = now < R.shutMs;          // planned, not started
+
+  $("rsLabel").textContent = done ? "Legal now · 70 hours back" : "Legal at · "+tzTag(R.tz);
+  $("rsClock").textContent = clockOf(legal, R.tz);
+  $("rsDay").textContent = dayOf(legal, R.tz);
+  $("rsClock").classList.toggle("done", done);
+  $("rsReadout").classList.toggle("done", done);
+  $("stamp").textContent = clockOf(legal,R.tz)+" · "+dayOf(legal,R.tz)+" · "+tzTag(R.tz);
+
+  ["rsCount","bars","rsScale"].forEach(id=>show($(id), true));
+  if(pending){
+    $("rsCount").innerHTML = "Clock starts in <b>"+hms(R.shutMs-now)+"</b> · "+
+      clockOf(shut,R.tz)+" "+dayOf(shut,R.tz);
+  } else if(done){
+    $("rsCount").innerHTML = "<b>Complete.</b> Ran out "+hm(elapsedH-RESET_HOURS)+" ago.";
+  } else {
+    $("rsCount").innerHTML = "<b>"+hms(legal.getTime()-now)+"</b> to go · "+
+      hm(elapsedH)+" of "+RESET_HOURS+"h done";
+  }
+
+  const bars = $("bars").children;
+  const full = pending ? 0 : Math.floor(elapsedH);
+  for(let i=0;i<RESET_HOURS;i++)
+    bars[i].className = i < full ? "on" : (i === full && !done && !pending ? "now" : "");
+  $("bars").classList.toggle("done", done);
+}
+
+/* ======================= nav + boot ======================= */
+const setView = v => {
+  $("tabEta").setAttribute("aria-selected", String(v==="eta"));
+  $("tabReset").setAttribute("aria-selected", String(v==="reset"));
+  show($("viewEta"), v==="eta");
+  show($("viewReset"), v==="reset");
+  try{ localStorage.setItem("milespost.view", v); }catch{}
+};
+$("tabEta").onclick = ()=> setView("eta");
+$("tabReset").onclick = ()=> setView("reset");
+
+$("depart").value = toWall(new Date(), E.originTz);
+if(R.shutMs) $("shut").value = toWall(new Date(R.shutMs), R.tz);
 syncTune();
 syncSwap();
-setMode(S.mode);
+setEtaMode(E.mode);
+renderReset();
+let startView = "eta";
+try{ startView = localStorage.getItem("milespost.view") || "eta"; }catch{}
+setView(startView === "reset" ? "reset" : "eta");
+setInterval(renderReset, 1000);      // the countdown has to tick
 
 if("serviceWorker" in navigator){
-  // If a new version is deployed, the incoming worker takes over and we reload once
-  // so the driver sees it on first launch — not the launch after.
-  const hadController = !!navigator.serviceWorker.controller;  // false on first-ever visit
+  const hadController = !!navigator.serviceWorker.controller;
   let reloading = false;
   navigator.serviceWorker.addEventListener("controllerchange", ()=>{
-    if(!hadController || reloading) return;   // don't bounce a fresh install
+    if(!hadController || reloading) return;
     reloading = true;
     location.reload();
   });

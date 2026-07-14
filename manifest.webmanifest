@@ -1,7 +1,7 @@
 {
-  "name": "Team ETA",
-  "short_name": "Team ETA",
-  "description": "Team-driver ETA calculator. Works offline.",
+  "name": "MilesPost",
+  "short_name": "MilesPost",
+  "description": "Team-driver ETA and 34-hour reset. Works offline.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
