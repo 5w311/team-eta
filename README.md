@@ -11,7 +11,7 @@ back, and hand a real alarm to your phone's Calendar.
 Resolves timezones from a town name. Day and night modes. **Runs 100% offline** — no server,
 no API, no signal required.
 
-**Current version: v2.0.1**
+**Current version: v2.0.2**
 
 ## Files
 
@@ -49,6 +49,12 @@ worker cached it on first load.
   keeps rolling through driver swaps. The 11/14 and the 70-hour cycle are still on you.
 
 ## Version history
+
+### v2.0.2
+
+- No user-facing changes. Internal only: the DOM-free logic (timezone resolver, ETA solver,
+  swap schedule, 34-reset and ICS math) moved out of `index.html` into `lib/logic.js`, and a
+  test suite now covers it. Behavior is unchanged and verified — see [Tests](#tests).
 
 ### v2.0.1
 
