@@ -4,7 +4,7 @@ Team-driver ETA calculator. Two models: dispatch's `miles ÷ 50`, and a tuned mo
 built from real cruise speed + fuel/swap stops. Resolves destination timezones from
 a town name. **Runs 100% offline** — no server, no API, no signal required.
 
-**Current version: v1.1**
+**Current version: v1.1.1**
 
 ## Files
 
@@ -37,6 +37,28 @@ because the service worker cached it on first load.
 
 ## Version history
 
+### v1.1.1
+
+**Tabs:** *Estimated ETA* (dispatch's fixed `miles ÷ 50`) and *Tuned Model ETA* (your real
+pace). The ÷50 rate is hardcoded — it's always 50, so there's nothing to edit and the
+settings card under that tab is gone.
+
+**Swaps and fuel stops are now modeled separately.** They were lumped into one
+mileage-based stop, which was wrong: fuel is on the odometer, but a driver swap is on
+the clock.
+
+- **Swaps run on a fixed schedule** — 06:00 and 18:00 by default — anchored to a chosen
+  timezone (Eastern), so the schedule does *not* drift as the truck moves west. A run
+  from 15:40 ET takes its swaps at 18:00 and 06:00 ET no matter what state you're in.
+  Editable under *Tune to your truck → Swap schedule*.
+- **Swap duration is its own setting** (~30–40 min), split out from the fuel stop
+  (~15–20 min). Per preset: Conservative 40 min, Realistic 35, Push 30.
+- Arrival is now solved iteratively, because the number of swaps depends on when you
+  arrive, and when you arrive depends on how many swaps you took.
+- Short runs that finish inside one shift now correctly take **zero** swaps.
+- The run strip color-codes stops: **blue = swap**, **dark amber = fuel**,
+  **slate = stretch**.
+
 ### v1.1
 
 Preset defaults retuned to real team-driving numbers:
@@ -67,8 +89,10 @@ cushion, installable PWA.
 
 Three things have to happen or the update won't reach phones that already installed it:
 
-1. **Bump `CACHE` in `sw.js`** (`team-eta-v1.1` → `team-eta-v1.2`). This is the one that
-   forces installed devices to pull the new build. Skip it and nothing changes for anyone.
+1. **Bump `CACHE` in `sw.js`.** It's a *build* marker, not a version number — change it on
+   every single deploy, even if the app version stays the same. This is the one that forces
+   installed devices to pull the new build. Skip it and nothing changes for anyone, and
+   you'll waste an hour wondering why.
 2. **Bump `PRESET_VERSION` in `index.html`** — but *only* if you changed the presets.
    Otherwise saved settings will override your new defaults.
 3. **Update the version stamp** in the footer of `index.html`.

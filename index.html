@@ -72,7 +72,9 @@
     border:1px solid var(--line)}
   .strip i{display:block}
   .strip i.d{background:var(--amber)}
-  .strip i.s{background:var(--amber-dim);min-width:2px}
+  .strip i.swap{background:var(--reefer);min-width:2px}
+  .strip i.fuel{background:var(--amber-dim);min-width:2px}
+  .strip i.rest{background:#3A444C;min-width:2px}
   .legend{display:flex;justify-content:space-between;font-family:var(--mono);font-size:10px;
     color:var(--mute);margin-top:6px;letter-spacing:.08em}
   .cushion{margin-top:14px;padding:10px 12px;border-radius:6px;font-family:var(--mono);font-size:13px}
@@ -82,9 +84,6 @@
     border:1px solid var(--reefer);border-radius:999px;padding:3px 10px;letter-spacing:.04em}
   .chip.grey{color:var(--mute);border-color:var(--mute)}
   .err{font-family:var(--mono);font-size:11px;color:var(--late);margin-top:8px}
-  .rate{display:flex;align-items:center;gap:10px}
-  .rate span{font-family:var(--mono);font-size:14px;color:var(--mute)}
-  .rate .fieldwrap{width:110px}
   .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
   .meta{display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap}
   .foot{font-family:var(--mono);font-size:10px;color:var(--mute);line-height:1.8;margin-top:14px;
@@ -97,8 +96,8 @@
   <div class="brand"><b>TEAM ETA</b><span>WHEELS NEVER STOP</span></div>
 
   <div class="tabs" role="tablist">
-    <button id="tabQuick" role="tab" aria-selected="true">COMPANY ÷50</button>
-    <button id="tabTuned" role="tab" aria-selected="false">TUNED MODEL</button>
+    <button id="tabQuick" role="tab" aria-selected="true">ESTIMATED ETA</button>
+    <button id="tabTuned" role="tab" aria-selected="false">TUNED MODEL ETA</button>
   </div>
 
   <!-- readout -->
@@ -160,17 +159,6 @@
   </div>
 
   <!-- how you run -->
-  <div class="card" id="panelQuick">
-    <div class="lbl">Company rate</div>
-    <div class="rate">
-      <span>miles ÷</span>
-      <div class="fieldwrap"><input id="rate" type="number" inputmode="decimal" value="50"></div>
-      <span>= hours</span>
-    </div>
-    <div class="note">The ÷50 already bakes in stops — it's dispatch's all-in average.
-      Flip to TUNED MODEL to see what your actual pace says.</div>
-  </div>
-
   <div class="card hide" id="panelTuned">
     <div class="lbl">How you run</div>
     <div class="presets" id="presets"></div>
@@ -179,15 +167,24 @@
     <div class="grid hide" id="tuneGrid">
       <div><div class="lbl">Cruise</div><div class="fieldwrap"><input id="mph" type="number" inputmode="decimal"><span class="suffix">mph</span></div></div>
       <div><div class="lbl">Fuel every</div><div class="fieldwrap"><input id="fuelEvery" type="number" inputmode="decimal"><span class="suffix">mi</span></div></div>
-      <div><div class="lbl">Fuel + swap</div><div class="fieldwrap"><input id="fuelMin" type="number" inputmode="decimal"><span class="suffix">min</span></div></div>
+      <div><div class="lbl">Fuel stop</div><div class="fieldwrap"><input id="fuelMin" type="number" inputmode="decimal"><span class="suffix">min</span></div></div>
+      <div><div class="lbl">Swap takes</div><div class="fieldwrap"><input id="swapMin" type="number" inputmode="decimal"><span class="suffix">min</span></div></div>
       <div><div class="lbl">Stretch every</div><div class="fieldwrap"><input id="restEvery" type="number" inputmode="decimal"><span class="suffix">hr</span></div></div>
       <div><div class="lbl">Stretch stop</div><div class="fieldwrap"><input id="restMin" type="number" inputmode="decimal"><span class="suffix">min</span></div></div>
+    </div>
+    <div class="hide" id="swapBox">
+      <div class="lbl" style="margin-top:16px">Swap schedule — fixed clock, wherever you are</div>
+      <div class="grid" style="margin-top:0">
+        <div><input id="swapA" type="time"></div>
+        <div><input id="swapB" type="time"></div>
+      </div>
+      <select id="swapTz" style="margin-top:10px"></select>
     </div>
   </div>
 
   <div class="foot">Team math — no 10-hour reset built in. Each of you still owes the 11/14 and the
     70-hour cycle, so check your clocks on long runs before you trust this number.
-    <span style="opacity:.55"> · v1.1</span></div>
+    <span style="opacity:.55"> · v1.1.1</span></div>
 </div>
 
 <script>
@@ -314,15 +311,42 @@ const hm = h => { const s=Math.round(Math.abs(h)*60);
 
 /* ---------------- state ---------------- */
 const PRESETS = {
-  Conservative:{mph:64,fuelEvery:500,fuelMin:15,restEvery:4,restMin:20},
-  Realistic:{mph:65,fuelEvery:650,fuelMin:15,restEvery:5,restMin:20},
-  Push:{mph:68,fuelEvery:800,fuelMin:20,restEvery:6,restMin:15}
+  Conservative:{mph:64,fuelEvery:500,fuelMin:15,swapMin:40,restEvery:4,restMin:20},
+  Realistic:{mph:65,fuelEvery:650,fuelMin:15,swapMin:35,restEvery:5,restMin:20},
+  Push:{mph:68,fuelEvery:800,fuelMin:20,swapMin:30,restEvery:6,restMin:15}
 };
 // Bump when PRESETS change: forces saved copies on existing phones to refresh,
 // instead of the old defaults overriding the new ones from localStorage.
-const PRESET_VERSION = 2;
+const PRESET_VERSION = 3;
+
+/* Driver swaps run on a fixed clock, not on mileage — 06:00 and 18:00 Eastern, no matter
+   where the truck is. Anchored to a chosen zone so the schedule doesn't drift westward. */
+const SWAP_DEFAULT = { times:["06:00","18:00"], tz:"America/New_York" };
+
+// Every instant in (start, end] where the wall clock in `tz` hits one of `times`.
+function swapTimes(start, end, tz, times){
+  const out = [];
+  if(!(end > start)) return out;
+  let [Y,Mo,D] = toWall(start, tz).slice(0,10).split("-").map(Number);
+  for(let guard=0; guard<400; guard++){
+    const ds = Y+"-"+String(Mo).padStart(2,"0")+"-"+String(D).padStart(2,"0");
+    for(const hhmm of times){
+      const t = fromWall(ds+"T"+hhmm, tz);
+      if(t && t > start && t <= end) out.push(t);
+    }
+    const nx = new Date(Date.UTC(Y, Mo-1, D+1));   // calendar math, DST-proof
+    Y=nx.getUTCFullYear(); Mo=nx.getUTCMonth()+1; D=nx.getUTCDate();
+    const dayStart = fromWall(Y+"-"+String(Mo).padStart(2,"0")+"-"+String(D).padStart(2,"0")+"T00:00", tz);
+    if(dayStart > end) break;
+  }
+  return out.sort((a,b)=>a-b);
+}
+// Dispatch always plans at miles ÷ 50. Fixed, not a setting.
+const RATE = 50;
+
 const S = {
-  mode:"quick", rate:50, preset:"Realistic", p:{...PRESETS.Realistic},
+  mode:"quick", preset:"Realistic", p:{...PRESETS.Realistic},
+  swap:{...SWAP_DEFAULT, times:[...SWAP_DEFAULT.times]},
   originTz:deviceTz(), originName:"Your device", destTz:null, destName:""
 };
 try{
@@ -330,7 +354,7 @@ try{
   if(saved){
     // Always keep what's personal to the driver.
     S.mode = saved.mode ?? S.mode;
-    S.rate = saved.rate ?? S.rate;
+    if(saved.swap && Array.isArray(saved.swap.times)) S.swap = saved.swap;
     // Only keep tuning if it was saved against the current preset set.
     if(saved.pv === PRESET_VERSION){
       S.preset = saved.preset ?? S.preset;
@@ -339,7 +363,8 @@ try{
   }
 }catch{}
 const save = () => { try{ localStorage.setItem("teamEta",
-  JSON.stringify({pv:PRESET_VERSION, mode:S.mode, rate:S.rate, preset:S.preset, p:S.p})); }catch{} };
+  JSON.stringify({pv:PRESET_VERSION, mode:S.mode, preset:S.preset, p:S.p,
+                  swap:S.swap})); }catch{} };
 
 const $ = id => document.getElementById(id);
 const show = (el,on) => el.classList.toggle("hide", !on);
@@ -357,18 +382,34 @@ Object.keys(PRESETS).forEach(k=>{
   $("presets").appendChild(b);
 });
 const syncTune = () => {
-  ["mph","fuelEvery","fuelMin","restEvery","restMin"].forEach(k=>{ $(k).value = S.p[k]; });
+  ["mph","fuelEvery","fuelMin","swapMin","restEvery","restMin"].forEach(k=>{ $(k).value = S.p[k]; });
   [...$("presets").children].forEach(b =>
     b.setAttribute("aria-selected", String(b.dataset.k===S.preset)));
 };
-["mph","fuelEvery","fuelMin","restEvery","restMin"].forEach(k=>{
+["mph","fuelEvery","fuelMin","swapMin","restEvery","restMin"].forEach(k=>{
   $(k).addEventListener("input", e=>{
     S.p[k] = e.target.value==="" ? "" : Number(e.target.value);
     S.preset="Custom"; syncTune(); save(); render();
   });
 });
-$("rate").value = S.rate;
-$("rate").addEventListener("input", e=>{ S.rate=e.target.value; save(); render(); });
+
+/* swap schedule */
+ZONE_LIST.forEach(z=>{
+  const o=document.createElement("option"); o.value=z; o.textContent="Swaps on "+tzTag(z);
+  $("swapTz").appendChild(o);
+});
+const syncSwap = () => {
+  $("swapA").value = S.swap.times[0];
+  $("swapB").value = S.swap.times[1];
+  $("swapTz").value = S.swap.tz;
+};
+$("swapA").addEventListener("input", e=>{
+  if(e.target.value){ S.swap.times[0]=e.target.value; save(); render(); }
+});
+$("swapB").addEventListener("input", e=>{
+  if(e.target.value){ S.swap.times[1]=e.target.value; save(); render(); }
+});
+$("swapTz").addEventListener("change", e=>{ S.swap.tz=e.target.value; save(); render(); });
 $("miles").addEventListener("input", render);
 $("appt").addEventListener("input", render);
 $("depart").addEventListener("input", render);
@@ -376,13 +417,13 @@ $("nowBtn").onclick = ()=>{ $("depart").value = toWall(new Date(), S.originTz); 
 $("tuneToggle").onclick = ()=>{
   const on = $("tuneGrid").classList.contains("hide");
   show($("tuneGrid"), on);
+  show($("swapBox"), on);
   $("tuneToggle").textContent = on ? "− HIDE TUNING" : "+ TUNE TO YOUR TRUCK";
 };
 const setMode = m => {
   S.mode=m; save();
   $("tabQuick").setAttribute("aria-selected", String(m==="quick"));
   $("tabTuned").setAttribute("aria-selected", String(m==="tuned"));
-  show($("panelQuick"), m==="quick");
   show($("panelTuned"), m==="tuned");
   render();
 };
@@ -452,7 +493,6 @@ function render(){
     ? S.destName + " · " + tzTag(S.destTz)
     : S.destTz ? "Destination · " + tzTag(S.destTz)
     : "Your clock · " + tzTag(S.originTz) + " — set a destination below");
-  $("tabQuick").textContent = "COMPANY ÷" + (Number(S.rate)>0 ? Number(S.rate) : 50);
 
   const M = Number($("miles").value) || 0;
   const start = fromWall($("depart").value, S.originTz);
@@ -468,12 +508,26 @@ function render(){
   const mph = Number(S.p.mph)||1;
   const driveH = M/mph;
   const fuelStops = Math.max(0, Math.ceil(M/(Number(S.p.fuelEvery)||9999))-1);
-  const restStops = Math.max(0, Math.ceil(driveH/(Number(S.p.restEvery)||999))-1-fuelStops);
-  const stopH = (fuelStops*(Number(S.p.fuelMin)||0) + restStops*(Number(S.p.restMin)||0))/60;
-  const tunedEta = new Date(start.getTime() + (driveH+stopH)*3600e3);
 
-  const rt = Number(S.rate)>0 ? Number(S.rate) : 50;
-  const quickH = M/rt;
+  /* Swaps land on a fixed clock, so their count depends on the arrival time — which
+     depends on how many swaps we took. Iterate to a fixed point. Each pass can only add
+     stops, so this converges (fast: 2-3 passes). */
+  let totalH = driveH, swaps = [], restStops = 0, stopH = 0;
+  for(let i=0;i<8;i++){
+    const end = new Date(start.getTime() + totalH*3600e3);
+    swaps = swapTimes(start, end, S.swap.tz, S.swap.times);
+    restStops = Math.max(0,
+      Math.ceil(driveH/(Number(S.p.restEvery)||999)) - 1 - fuelStops - swaps.length);
+    stopH = (swaps.length*(Number(S.p.swapMin)||0)
+           + fuelStops*(Number(S.p.fuelMin)||0)
+           + restStops*(Number(S.p.restMin)||0)) / 60;
+    const next = driveH + stopH;
+    if(Math.abs(next-totalH) < 1e-4){ totalH = next; break; }
+    totalH = next;
+  }
+  const tunedEta = new Date(start.getTime() + totalH*3600e3);
+
+  const quickH = M/RATE;
   const quickEta = new Date(start.getTime() + quickH*3600e3);
 
   const eta = S.mode==="quick" ? quickEta : tunedEta;
@@ -488,24 +542,37 @@ function render(){
   if(S.mode==="quick"){
     const diffH = (tunedEta-quickEta)/3600e3;
     show($("quickNote"), true);
-    $("quickNote").innerHTML = M+" mi ÷ "+rt+" = <span style='color:var(--ink)'>"+hm(quickH)+
+    $("quickNote").innerHTML = M+" mi ÷ "+RATE+" = <span style='color:var(--ink)'>"+hm(quickH)+
       "</span> all-in<br>Tuned model says "+clockOf(tunedEta,showTz)+" ("+hm(diffH)+" "+
       (diffH<=0 ? "ahead of" : "behind")+" dispatch)";
   } else {
-    const legs = fuelStops+restStops+1;
+    // Lay every stop on the timeline: swaps by clock, fuel by odometer, stretches evenly.
+    const stops = [];
+    swaps.forEach(t => stops.push({k:"swap", min:Number(S.p.swapMin)||0,
+      at:(t-start)/3600e3/totalH}));
+    for(let i=1;i<=fuelStops;i++)
+      stops.push({k:"fuel", min:Number(S.p.fuelMin)||0, at:i*Number(S.p.fuelEvery)/M});
+    for(let i=1;i<=restStops;i++)
+      stops.push({k:"rest", min:Number(S.p.restMin)||0, at:i/(restStops+1)});
+    stops.sort((a,b)=>a.at-b.at);
+
     let html="";
-    for(let i=0;i<legs;i++){
-      html += "<i class='d' style='flex:"+(driveH/legs)+"'></i>";
-      if(i<legs-1) html += "<i class='s' style='flex:"+(stopH/(legs-1))+"'></i>";
+    for(let i=0;i<=stops.length;i++){
+      html += "<i class='d' style='flex:"+(driveH/(stops.length+1))+"'></i>";
+      if(i<stops.length) html += "<i class='"+stops[i].k+"' style='flex:"+(stops[i].min/60)+"'></i>";
     }
     $("strip").innerHTML = html;
     show($("strip"), true); show($("legend"), true);
     $("legend").innerHTML = "<span>ROLLING "+hm(driveH)+"</span><span>STOPPED "+hm(stopH)+
-      "</span><span>÷"+rt+" SAYS "+clockOf(quickEta,showTz)+"</span>";
-    $("runNote").innerHTML = S.p.mph+" mph cruise · fuel/swap every "+S.p.fuelEvery+" mi for "+
-      S.p.fuelMin+" min · stretch every "+S.p.restEvery+" h for "+S.p.restMin+" min<br>This run: "+
-      fuelStops+" fuel/swap stop"+(fuelStops===1?"":"s")+", "+restStops+" short stop"+
-      (restStops===1?"":"s");
+      "</span><span>"+(M/totalH).toFixed(1)+" MPH AVG</span>";
+
+    const sw = S.swap.times.join(" / ")+" "+tzTag(S.swap.tz);
+    $("runNote").innerHTML =
+      S.p.mph+" mph cruise · fuel every "+S.p.fuelEvery+" mi ("+S.p.fuelMin+" min) · swap "+
+      sw+" ("+S.p.swapMin+" min) · stretch every "+S.p.restEvery+" h ("+S.p.restMin+" min)"+
+      "<br>This run: "+swaps.length+" swap"+(swaps.length===1?"":"s")+", "+
+      fuelStops+" fuel stop"+(fuelStops===1?"":"s")+", "+
+      restStops+" short stop"+(restStops===1?"":"s");
   }
 
   const apptVal = $("appt").value;
@@ -523,6 +590,7 @@ function render(){
 /* boot */
 $("depart").value = toWall(new Date(), S.originTz);
 syncTune();
+syncSwap();
 setMode(S.mode);
 
 if("serviceWorker" in navigator){

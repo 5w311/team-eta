@@ -1,4 +1,4 @@
-const CACHE = "team-eta-v1.1";
+const CACHE = "team-eta-v1.1.1-b2";  // build marker: bump on EVERY deploy, even same version
 const ASSETS = [
   "./",
   "./index.html",
