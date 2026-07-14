@@ -11,7 +11,7 @@ back, and hand a real alarm to your phone's Calendar.
 Resolves timezones from a town name. Day and night modes. **Runs 100% offline** — no server,
 no API, no signal required.
 
-**Current version: v2.0**
+**Current version: v2.0.1**
 
 ## Files
 
@@ -33,7 +33,9 @@ worker cached it on first load.
 
 ## Notes
 
-- Settings persist per-device via `localStorage`..
+- Settings persist per-device via `localStorage`. Because storage is tied to the domain and
+  not the folder, the rename from Team ETA carried everything over — tuning, swap schedule,
+  theme.
 - Timezone resolution is a lookup table covering all 50 states, with per-city handling for
   the split states (TX, TN, KY, FL, IN, ND, SD, NE, KS, ID, OR, MI). Unknown towns fall back
   to a manual zone picker.
@@ -48,6 +50,13 @@ worker cached it on first load.
   keeps rolling through driver swaps. The 11/14 and the 70-hour cycle are still on you.
 
 ## Version history
+
+### v2.0.1
+
+- The 34-reset calendar event is now a single point in time (zero-length) instead of a
+  15-minute block. The two alarms — 30 minutes out and the moment itself — are unchanged;
+  they were always the part that pings you. The 15-minute span was only there to give the
+  event a visible length, which isn't needed.
 
 ### v2.0 — MilesPost
 

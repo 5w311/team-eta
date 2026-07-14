@@ -368,7 +368,7 @@
       right across a DST change.</div>
   </div>
 
-  <div class="foot" style="text-align:center;opacity:.55">MilesPost v2.0</div>
+  <div class="foot" style="text-align:center;opacity:.55">MilesPost v2.0.1</div>
 </div>
 
 <script>
@@ -859,15 +859,16 @@ const esc = s => s.replace(/([,;\\])/g,"\\$1");
 $("icsBtn").onclick = ()=>{
   if(!R.shutMs) return;
   const legal = new Date(R.shutMs + RESET_HOURS*3600e3);
-  const end = new Date(legal.getTime() + 15*60e3);
   const started = clockOf(new Date(R.shutMs), R.tz)+" "+dayOf(new Date(R.shutMs), R.tz);
+  // Zero-length event (DTEND == DTSTART): calendars render this as a point in time,
+  // not a block. The alarms below are what actually ping you.
   const ics = [
     "BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//MilesPost//34 Reset//EN",
     "CALSCALE:GREGORIAN","METHOD:PUBLISH","BEGIN:VEVENT",
     "UID:reset34-"+R.shutMs+"@milespost",
     "DTSTAMP:"+icsStamp(new Date()),
     "DTSTART:"+icsStamp(legal),
-    "DTEND:"+icsStamp(end),
+    "DTEND:"+icsStamp(legal),
     "SUMMARY:70 hours restored - back on duty",
     "DESCRIPTION:"+esc("34-hour restart complete. Shut down "+started+" "+tzTag(R.tz)+"."),
     "BEGIN:VALARM","TRIGGER:-PT30M","ACTION:DISPLAY",
