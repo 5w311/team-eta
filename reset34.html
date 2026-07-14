@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>34 Reset</title>
+<meta name="theme-color" content="#0B0E10">
+<script>
+/* Runs before first paint so day mode never flashes black. */
+(function(){
+  try{
+    var t = localStorage.getItem("teamEtaTheme");
+    if(!t) t = window.matchMedia("(prefers-color-scheme: light)").matches ? "day" : "night";
+    document.documentElement.setAttribute("data-theme", t);
+  }catch(e){ document.documentElement.setAttribute("data-theme","night"); }
+})();
+</script>
+<link rel="apple-touch-icon" href="./apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="34 Reset">
+<style>
+  /* Night: the Cascadia dash at 3am. Amber on black, low light spill.
+     Borders do the work of separating surfaces — no shadows needed in the dark. */
+  :root, [data-theme="night"]{
+    color-scheme: dark;
+    background-color:#0B0E10;    /* literal, on <html> — survives var() failures */
+    --asphalt:#0B0E10; --panel:#14181C; --line:#2B333A;
+    --amber:#FFB020; --amber-dim:#7A5511; --reefer:#5AC8E8;
+    --good:#4FD18B; --late:#FF5D52; --ink:#E7EDF2; --mute:#7C8B96;
+    --bar-off:#232A30; --warn-bg:rgba(255,176,32,.06);
+    --on-solid:#0B0E10;          /* dark ink sits on the bright fills */
+    --shadow:none;
+  }
+  /* Day: cool grey base, warm amber accents. Deliberately NOT a warm/paper base —
+     warm-on-warm turns sepia and reads dingy. The cool ground makes the amber ring.
+     Amber lands at #A8490A: still amber, and clears 4.5:1 on white AND on the page.
+     Page sits at 95% white; at that lift the cards can't separate by tone alone, so
+     the borders and shadows do it. */
+  [data-theme="day"]{
+    color-scheme: light;
+    background-color:#F2F4F7;    /* literal, on <html> — survives var() failures */
+    --asphalt:#F2F4F7; --panel:#FFFFFF; --line:#CBD1D6;
+    --amber:#A8490A; --amber-dim:#E3B584; --reefer:#0369A1;
+    --good:#15803D; --late:#B3261E; --ink:#0F1419; --mute:#59636D;
+    --bar-off:#D5DADE; --warn-bg:rgba(168,73,10,.07);
+    --on-solid:#FFFFFF;          /* white sits on the dark fills */
+    --shadow:0 1px 3px rgba(15,20,25,.10), 0 1px 2px rgba(15,20,25,.06);
+  }
+  :root{
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  body,.card,input,select,button,.stamp{
+    transition:background-color .2s ease, color .2s ease, border-color .2s ease}
+  @media (prefers-reduced-motion: reduce){ *{transition:none !important} }
+  *{box-sizing:border-box}
+  html,body{margin:0;background-color:var(--asphalt);color:var(--ink);font-family:var(--sans);
+    -webkit-text-size-adjust:100%}
+  /* The html/body background can be overridden or forced transparent by whatever is
+     hosting the page (an app preview, an in-app browser), which leaves the host's own
+     dark canvas showing through behind the cards. So paint the background on a real,
+     full-bleed layer this app owns. Belt and braces. */
+  body{min-height:100vh; min-height:100dvh; position:relative}
+  body::before{content:"";position:fixed;inset:0;background-color:var(--asphalt);
+    z-index:-1;pointer-events:none}
+  body{padding:16px calc(16px + env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom))
+    calc(16px + env(safe-area-inset-left)); padding-top:calc(16px + env(safe-area-inset-top))}
+  .wrap{max-width:470px;margin:0 auto}
+
+  .brand{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+  .brand b{font-family:var(--mono);font-size:12px;letter-spacing:.22em;color:var(--amber);font-weight:400}
+  .brand-r{display:flex;align-items:center;gap:10px}
+  .tag{font-family:var(--mono);font-size:10px;letter-spacing:.14em;color:var(--mute)}
+  @media (max-width:400px){ .tag{display:none} }
+
+  /* day / night switch — the knob carries the icon of the mode you're in */
+  .switch{width:52px;height:28px;flex:none;padding:0;border-radius:999px;
+    border:1px solid var(--line);background:var(--panel);position:relative;box-shadow:var(--shadow)}
+  .switch .knob{position:absolute;top:2px;left:2px;width:22px;height:22px;border-radius:50%;
+    background:var(--amber);transition:transform .2s ease, background-color .2s ease;
+    display:flex;align-items:center;justify-content:center}
+  [data-theme="day"] .switch .knob{transform:translateX(24px)}
+  .switch svg{width:13px;height:13px;display:block}
+  .switch .moon{fill:var(--on-solid)}
+  .switch .sun{fill:none;stroke:var(--on-solid);stroke-width:2.1;stroke-linecap:round}
+  .switch .sun{display:none}
+  [data-theme="day"] .switch .moon{display:none}
+  [data-theme="day"] .switch .sun{display:block}
+
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;
+    padding:16px;margin-bottom:14px;box-shadow:var(--shadow)}
+  .readout{border-top:2px solid var(--amber);padding:18px}
+  .readout.done{border-top-color:var(--good)}
+
+  label,.lbl{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.14em;
+    text-transform:uppercase;color:var(--mute);margin-bottom:6px}
+
+  input,select{width:100%;background:var(--asphalt);color:var(--ink);border:1px solid var(--line);
+    border-radius:6px;padding:11px 12px;font-family:var(--mono);font-size:16px;outline:none;
+    -webkit-appearance:none;appearance:none}
+  :focus-visible{box-shadow:0 0 0 2px var(--amber)}
+  .row{display:flex;gap:8px}
+  .row > input{flex:1}
+  .group{margin-bottom:14px}
+  .group:last-child{margin-bottom:0}
+
+  button{font-family:var(--mono);cursor:pointer;border-radius:6px;border:1px solid var(--line);
+    background:transparent;color:var(--mute);font-size:12px;letter-spacing:.08em}
+  .go{background:var(--reefer);color:var(--on-solid);border:none;padding:0 16px}
+  .ghost{color:var(--reefer);border-color:var(--reefer);padding:0 14px}
+  .primary{width:100%;padding:13px 0;background:var(--amber);color:var(--on-solid);
+    border:none;font-size:12px;letter-spacing:.12em}
+  .primary:disabled{opacity:.4}
+  .danger{width:100%;padding:11px 0;color:var(--late);border-color:var(--late);
+    background:transparent;font-size:11px;letter-spacing:.08em;margin-top:8px}
+  .muted{width:100%;padding:11px 0;color:var(--mute);border-color:var(--line);
+    background:transparent;font-size:11px;letter-spacing:.08em;margin-top:8px}
+  /* armed = one tap in, waiting for the second. Fills solid so it's unmistakable. */
+  .danger.armed{background:var(--late);color:var(--on-solid);border-color:var(--late)}
+  .muted.armed{background:var(--mute);color:var(--on-solid);border-color:var(--mute)}
+  .danger:disabled,.muted:disabled{opacity:.3;cursor:default}
+  .link{background:none;border:none;color:var(--reefer);font-size:11px;padding:0;
+    text-decoration:underline;font-family:var(--mono)}
+
+  .big{font-family:var(--mono);font-size:46px;font-weight:700;color:var(--amber);
+    letter-spacing:-.02em;line-height:1;font-variant-numeric:tabular-nums}
+  .big.done{color:var(--good)}
+  .day{font-family:var(--mono);font-size:13px;margin-top:6px}
+  .count{font-family:var(--mono);font-size:12px;color:var(--mute);margin-top:12px;
+    padding-top:12px;border-top:1px solid var(--line);font-variant-numeric:tabular-nums}
+  .count b{color:var(--ink);font-weight:400}
+
+  /* one bar per hour of the 34 */
+  .bars{display:flex;gap:2px;height:22px;margin-top:14px}
+  .bars i{flex:1;display:block;border-radius:1px;background:var(--bar-off)}
+  .bars i.on{background:var(--amber)}
+  .bars i.now{background:var(--amber);opacity:.45}
+  .bars.done i.on{background:var(--good)}
+  .scale{display:flex;justify-content:space-between;font-family:var(--mono);font-size:9px;
+    color:var(--mute);margin-top:5px;letter-spacing:.08em}
+
+  .chip{display:inline-block;font-family:var(--mono);font-size:11px;color:var(--reefer);
+    border:1px solid var(--reefer);border-radius:999px;padding:3px 10px;letter-spacing:.04em}
+  .chip.grey{color:var(--mute);border-color:var(--mute)}
+  .meta{display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap}
+  .err{font-family:var(--mono);font-size:11px;color:var(--late);margin-top:8px}
+
+  .warn{border:1px solid var(--amber-dim);background:var(--warn-bg);border-radius:6px;
+    padding:12px;margin-top:14px;font-family:var(--mono);font-size:11px;color:var(--mute);
+    line-height:1.7}
+  .warn b{color:var(--amber);font-weight:400}
+  .stamp{font-family:var(--mono);font-size:16px;color:var(--ink);margin-top:8px;
+    padding:10px 12px;background:var(--asphalt);border:1px solid var(--line);border-radius:6px;
+    user-select:all;-webkit-user-select:all}
+  .foot{font-family:var(--mono);font-size:10px;color:var(--mute);line-height:1.8;margin-top:14px;
+    letter-spacing:.03em}
+  .hide{display:none !important}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand">
+    <b>34 RESET</b>
+    <div class="brand-r">
+      <span class="tag">SHUT DOWN. CLOCK RUNS.</span>
+      <button class="switch" id="themeBtn" role="switch" aria-checked="false"
+              aria-label="Switch to day mode">
+        <i class="knob">
+          <svg class="moon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>
+          </svg>
+          <svg class="sun" viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="12" cy="12" r="4.4"/>
+            <path d="M12 1.8v2.6M12 19.6v2.6M4.2 4.2l1.9 1.9M17.9 17.9l1.9 1.9M1.8 12h2.6M19.6 12h2.6M4.2 19.8l1.9-1.9M17.9 6.1l1.9-1.9"/>
+          </svg>
+        </i>
+      </button>
+    </div>
+  </div>
+
+  <div class="card readout" id="readout">
+    <div class="lbl" id="bigLabel">Legal at</div>
+    <div class="big" id="bigClock">--:--</div>
+    <div class="day" id="bigDay">Set the time you shut down.</div>
+    <div class="count hide" id="count"></div>
+    <div class="bars hide" id="bars"></div>
+    <div class="scale hide" id="scale"><span>SHUT DOWN</span><span>17H</span><span>34H</span></div>
+  </div>
+
+  <div class="card">
+    <div class="group">
+      <label for="shut">Shut down</label>
+      <div class="row">
+        <input id="shut" type="datetime-local">
+        <button class="ghost" id="nowBtn">NOW</button>
+      </div>
+      <div class="meta">
+        <span class="chip grey" id="tzChip"></span>
+        <button class="link" id="tzToggle">change</button>
+      </div>
+      <div class="row hide" id="tzEdit" style="margin-top:8px">
+        <input id="townIn" placeholder="Town, ST" autocomplete="off">
+        <button class="go" id="townSet">SET</button>
+        <button id="devBtn" style="padding:0 12px">DEVICE</button>
+      </div>
+      <div class="err hide" id="tzErr"></div>
+      <select id="tzPick" class="hide" style="margin-top:8px"></select>
+    </div>
+  </div>
+
+  <div class="card">
+    <button class="primary" id="icsBtn" disabled>ADD ALARM TO CALENDAR</button>
+    <div class="foot" style="margin-top:10px">
+      No web app can wake your phone on its own. This hands a real alarm to your Calendar,
+      which fires whether this is open, closed, or deleted.
+    </div>
+    <div class="warn hide" id="frameWarn">
+      <b>You're viewing this inside an app preview.</b> Previews block downloads, so the
+      calendar handoff won't fire here. Open the page in Safari or Chrome and it'll work.
+    </div>
+    <div class="hide" id="manual">
+      <div class="lbl" style="margin-top:14px">Or set an alarm by hand for</div>
+      <div class="stamp" id="stamp"></div>
+    </div>
+    <button class="danger" id="resetBtn">BROKE THE 34 — RESTART FROM NOW</button>
+    <button class="muted" id="clearBtn">CLEAR TIMER</button>
+  </div>
+
+  <div class="warn">
+    <b>It has to be 34 consecutive hours off duty.</b> Going on duty for even a minute —
+    moving the truck, a quick pre-trip, signing something — starts the whole thing over
+    from zero. If that happens, hit restart above.
+  </div>
+
+  <div class="foot">34-hour restart under 395.3(c). Counts 34 real elapsed hours, so it stays
+    right across a DST change. <span style="opacity:.55">· v0.8 test</span></div>
+</div>
+
+<script>
+const RESET_HOURS = 34;
+
+/* ---------------- theme ---------------- */
+/* Shared key: same origin as the ETA app, so the choice carries across both. */
+const THEME_KEY = "teamEtaTheme";
+const readTheme = () => {
+  try{
+    const t = localStorage.getItem(THEME_KEY);
+    if(t) return t;
+    return window.matchMedia("(prefers-color-scheme: light)").matches ? "day" : "night";
+  }catch{ return "night"; }
+};
+let theme = readTheme();
+const applyTheme = t => {
+  theme = t;
+  document.documentElement.setAttribute("data-theme", t);
+  const btn = document.getElementById("themeBtn");
+  btn.setAttribute("aria-checked", String(t === "day"));
+  btn.setAttribute("aria-label", t === "day" ? "Switch to night mode" : "Switch to day mode");
+  const meta = document.querySelector('meta[name=theme-color]');
+  if(meta) meta.setAttribute("content", t === "day" ? "#F2F4F7" : "#0B0E10");
+  try{ localStorage.setItem(THEME_KEY, t); }catch{}
+};
+document.getElementById("themeBtn").onclick = () =>
+  applyTheme(theme === "day" ? "night" : "day");
+applyTheme(theme);
+
+/* ---------------- timezone resolver (same table as the ETA app) ---------------- */
+const Z = { E:"America/New_York", C:"America/Chicago", M:"America/Denver",
+  P:"America/Los_Angeles", AZ:"America/Phoenix", AK:"America/Anchorage", HI:"Pacific/Honolulu" };
+
+const STATE_TZ = {
+  CT:"E",DE:"E",DC:"E",GA:"E",ME:"E",MD:"E",MA:"E",NH:"E",NJ:"E",NY:"E",NC:"E",OH:"E",
+  PA:"E",RI:"E",SC:"E",VT:"E",VA:"E",WV:"E",
+  AL:"C",AR:"C",IL:"C",IA:"C",LA:"C",MN:"C",MS:"C",MO:"C",OK:"C",WI:"C",
+  CO:"M",MT:"M",NM:"M",UT:"M",WY:"M",
+  CA:"P",WA:"P",NV:"P",
+  AZ:"AZ",AK:"AK",HI:"HI"
+};
+
+const SPLIT = {
+  TX:{def:"C",cities:{"el paso":"M",socorro:"M","horizon city":"M",anthony:"M",fabens:"M",
+      "van horn":"M","sierra blanca":"M"}},
+  FL:{def:"E",cities:{pensacola:"C","panama city":"C","fort walton beach":"C",destin:"C",
+      crestview:"C",milton:"C",niceville:"C",marianna:"C",chipley:"C","de funiak springs":"C",
+      "defuniak springs":"C",bonifay:"C","gulf breeze":"C",navarre:"C"}},
+  TN:{def:null,cities:{nashville:"C",memphis:"C",jackson:"C",clarksville:"C",murfreesboro:"C",
+      franklin:"C",cookeville:"C",dickson:"C",columbia:"C","spring hill":"C",lebanon:"C",
+      smyrna:"C",gallatin:"C",hendersonville:"C",knoxville:"E",chattanooga:"E","johnson city":"E",
+      kingsport:"E",bristol:"E",cleveland:"E",morristown:"E",crossville:"E",athens:"E",
+      sevierville:"E","oak ridge":"E",maryville:"E",greeneville:"E"}},
+  KY:{def:null,cities:{louisville:"E",lexington:"E",covington:"E",florence:"E",frankfort:"E",
+      richmond:"E",georgetown:"E",elizabethtown:"E",london:"E",corbin:"E",danville:"E",
+      winchester:"E",somerset:"E","mount sterling":"E",ashland:"E","bowling green":"C",
+      paducah:"C",owensboro:"C",hopkinsville:"C",henderson:"C",madisonville:"C",
+      "central city":"C",cadiz:"C"}},
+  IN:{def:"E",cities:{gary:"C",hammond:"C",evansville:"C",merrillville:"C",portage:"C",
+      valparaiso:"C","michigan city":"C",jasper:"C"}},
+  ND:{def:"C",cities:{dickinson:"M",bowman:"M",beach:"M",hettinger:"M"}},
+  SD:{def:"C",cities:{"rapid city":"M",spearfish:"M",sturgis:"M","belle fourche":"M",
+      "hot springs":"M",custer:"M",pierre:"C"}},
+  NE:{def:"C",cities:{scottsbluff:"M",sidney:"M",chadron:"M",kimball:"M",alliance:"M",
+      ogallala:"M","north platte":"C"}},
+  KS:{def:"C",cities:{goodland:"M","sharon springs":"M",colby:"C"}},
+  ID:{def:"M",cities:{"coeur d'alene":"P","coeur dalene":"P","post falls":"P",sandpoint:"P",
+      moscow:"P",lewiston:"P","bonners ferry":"P"}},
+  OR:{def:"P",cities:{ontario:"M"}},
+  MI:{def:"E",cities:{menominee:"C","iron mountain":"C",ironwood:"C",escanaba:"E"}}
+};
+
+const STATE_NAMES = {alabama:"AL",alaska:"AK",arizona:"AZ",arkansas:"AR",california:"CA",
+  colorado:"CO",connecticut:"CT",delaware:"DE",florida:"FL",georgia:"GA",hawaii:"HI",idaho:"ID",
+  illinois:"IL",indiana:"IN",iowa:"IA",kansas:"KS",kentucky:"KY",louisiana:"LA",maine:"ME",
+  maryland:"MD",massachusetts:"MA",michigan:"MI",minnesota:"MN",mississippi:"MS",missouri:"MO",
+  montana:"MT",nebraska:"NE",nevada:"NV","new hampshire":"NH","new jersey":"NJ","new mexico":"NM",
+  "new york":"NY","north carolina":"NC","north dakota":"ND",ohio:"OH",oklahoma:"OK",oregon:"OR",
+  pennsylvania:"PA","rhode island":"RI","south carolina":"SC","south dakota":"SD",tennessee:"TN",
+  texas:"TX",utah:"UT",vermont:"VT",virginia:"VA",washington:"WA","west virginia":"WV",
+  wisconsin:"WI",wyoming:"WY","district of columbia":"DC"};
+
+const ZONE_LIST = ["America/New_York","America/Chicago","America/Denver","America/Phoenix",
+  "America/Los_Angeles","America/Anchorage","Pacific/Honolulu"];
+
+const titleCase = s => s.split(" ").map(w => w ? w[0].toUpperCase()+w.slice(1) : w).join(" ");
+
+function resolvePlace(raw){
+  const norm = raw.toLowerCase().replace(/[.,]/g," ").replace(/\s+/g," ").trim();
+  if(!norm) return null;
+  const words = norm.split(" ");
+  let st=null, cityWords=words;
+  for(const n of [3,2,1]){
+    if(words.length>=n){
+      const cand = words.slice(-n).join(" ");
+      if(STATE_NAMES[cand]){ st=STATE_NAMES[cand]; cityWords=words.slice(0,-n); break; }
+    }
+  }
+  if(!st){
+    const last = words[words.length-1].toUpperCase();
+    if(last.length===2 && (STATE_TZ[last]||SPLIT[last])){ st=last; cityWords=words.slice(0,-1); }
+  }
+  if(!st) return null;
+  const city = cityWords.join(" ").trim();
+  const label = city ? titleCase(city)+", "+st
+    : titleCase(Object.keys(STATE_NAMES).find(k=>STATE_NAMES[k]===st)||st);
+  if(STATE_TZ[st]) return {tz:Z[STATE_TZ[st]], place:label};
+  const sp = SPLIT[st];
+  if(sp){
+    if(city && sp.cities[city]) return {tz:Z[sp.cities[city]], place:label};
+    if(sp.def) return {tz:Z[sp.def], place:label};
+  }
+  return null;
+}
+
+/* ---------------- time helpers (identical to the ETA app, so this merges clean) ---------------- */
+const deviceTz = () => { try{ return Intl.DateTimeFormat().resolvedOptions().timeZone; }
+  catch{ return "America/New_York"; } };
+const tzTag = tz => { try{
+  return new Intl.DateTimeFormat("en-US",{timeZone:tz,timeZoneName:"short"})
+    .formatToParts(new Date()).find(p=>p.type==="timeZoneName").value;
+} catch { return tz; } };
+const offsetMs = (date,tz) => {
+  const p = new Intl.DateTimeFormat("en-US",{timeZone:tz,hour12:false,year:"numeric",month:"2-digit",
+    day:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit"})
+    .formatToParts(date).reduce((a,x)=>(a[x.type]=x.value,a),{});
+  return Date.UTC(+p.year,p.month-1,+p.day,p.hour%24,+p.minute,+p.second) - date.getTime();
+};
+const fromWall = (wall,tz) => {
+  if(!wall) return null;
+  const naive = Date.parse((wall.length===16 ? wall+":00" : wall)+"Z");
+  if(isNaN(naive)) return null;
+  let ts = naive - offsetMs(new Date(naive),tz);
+  ts = naive - offsetMs(new Date(ts),tz);
+  return new Date(ts);
+};
+const toWall = (date,tz) => {
+  const p = new Intl.DateTimeFormat("en-CA",{timeZone:tz,hour12:false,year:"numeric",month:"2-digit",
+    day:"2-digit",hour:"2-digit",minute:"2-digit"})
+    .formatToParts(date).reduce((a,x)=>(a[x.type]=x.value,a),{});
+  const h = p.hour%24===0 ? "00" : p.hour;
+  return `${p.year}-${p.month}-${p.day}T${h}:${p.minute}`;
+};
+const clockOf = (d,tz) => new Intl.DateTimeFormat("en-US",{timeZone:tz,hour:"2-digit",
+  minute:"2-digit",hour12:false}).format(d);
+const dayOf = (d,tz) => new Intl.DateTimeFormat("en-US",{timeZone:tz,weekday:"short",
+  month:"short",day:"numeric"}).format(d);
+const hm = h => { const s=Math.round(Math.abs(h)*60);
+  return Math.floor(s/60)+"h "+String(s%60).padStart(2,"0")+"m"; };
+const hms = ms => {
+  const t = Math.max(0, Math.floor(ms/1000));
+  return Math.floor(t/3600)+"h "+String(Math.floor(t%3600/60)).padStart(2,"0")+"m "+
+    String(t%60).padStart(2,"0")+"s";
+};
+
+/* ---------------- state ---------------- */
+const S = { shutMs:null, tz:deviceTz(), tzName:"Your device" };
+try{
+  const saved = JSON.parse(localStorage.getItem("teamEta34")||"null");
+  if(saved){
+    if(typeof saved.shutMs === "number") S.shutMs = saved.shutMs;
+    if(saved.tz) S.tz = saved.tz;
+    if(saved.tzName) S.tzName = saved.tzName;
+  }
+}catch{}
+const save = () => { try{
+  localStorage.setItem("teamEta34", JSON.stringify({shutMs:S.shutMs, tz:S.tz, tzName:S.tzName}));
+}catch{} };
+
+const $ = id => document.getElementById(id);
+const show = (el,on) => el.classList.toggle("hide", !on);
+
+// A preview pane runs us in a sandboxed frame, where downloads are blocked outright.
+const inFrame = (()=>{ try{ return window.self !== window.top; } catch { return true; } })();
+
+/* ---------------- build ---------------- */
+ZONE_LIST.forEach(z=>{
+  const o=document.createElement("option"); o.value=z; o.textContent=tzTag(z)+" — "+z;
+  $("tzPick").appendChild(o);
+});
+for(let i=0;i<RESET_HOURS;i++) $("bars").appendChild(document.createElement("i"));
+show($("frameWarn"), inFrame);
+
+/* The datetime field is a wall clock in S.tz — the local time where you shut down.
+   Changing the zone therefore re-reads that same clock face in the new zone. */
+const applyTz = (tz, name) => {
+  S.tz = tz; S.tzName = name;
+  const d = fromWall($("shut").value, S.tz);
+  if(d) S.shutMs = d.getTime();
+  show($("tzEdit"), false); $("tzToggle").textContent = "change";
+  show($("tzErr"), false); show($("tzPick"), false);
+  save(); render();
+};
+
+$("shut").addEventListener("input", e=>{
+  const d = fromWall(e.target.value, S.tz);
+  if(d){ S.shutMs = d.getTime(); save(); render(); }
+});
+const setNow = ()=>{
+  S.shutMs = Date.now();
+  $("shut").value = toWall(new Date(S.shutMs), S.tz);
+  save(); render();
+};
+$("nowBtn").onclick = setNow;
+
+// Only meaningful if a 34 is actually running. Starting one is what NOW is for.
+const restartFromNow = ()=>{ if(!S.shutMs) return; setNow(); };
+const clearAll = ()=>{
+  if(!S.shutMs) return;
+  S.shutMs = null;
+  $("shut").value = "";
+  show($("manual"), false);
+  save(); render();
+};
+
+/* Both of these throw away a clock you may have been running for a day and a half.
+   One tap arms, second tap commits, and it disarms itself after 3 seconds. */
+function twoTap(btn, idle, armedLabel, action){
+  let armed = false, t = null;
+  const disarm = ()=>{ armed=false; btn.textContent=idle; btn.classList.remove("armed"); };
+  btn.onclick = ()=>{
+    if(btn.disabled) return;
+    if(!armed){
+      armed = true;
+      btn.textContent = armedLabel;
+      btn.classList.add("armed");
+      t = setTimeout(disarm, 3000);
+      return;
+    }
+    clearTimeout(t); disarm(); action();
+  };
+  return { disarm };
+}
+const resetGuard = twoTap($("resetBtn"), "BROKE THE 34 — RESTART FROM NOW",
+  "TAP AGAIN TO RESTART FROM NOW", restartFromNow);
+const clearGuard = twoTap($("clearBtn"), "CLEAR TIMER",
+  "TAP AGAIN TO CLEAR", clearAll);
+
+$("tzToggle").onclick = ()=>{
+  const on = $("tzEdit").classList.contains("hide");
+  show($("tzEdit"), on);
+  $("tzToggle").textContent = on ? "close" : "change";
+};
+const doTown = ()=>{
+  const raw = $("townIn").value.trim();
+  if(!raw) return;
+  const r = resolvePlace(raw);
+  if(r){
+    $("townIn").value = "";
+    applyTz(r.tz, r.place);
+  } else {
+    show($("tzErr"), true);
+    $("tzErr").textContent = "Couldn't place that. Add the state (\"Laredo, TX\"), or pick a zone:";
+    show($("tzPick"), true);
+  }
+};
+$("townSet").onclick = doTown;
+$("townIn").addEventListener("keydown", e=>{ if(e.key==="Enter") doTown(); });
+$("devBtn").onclick = ()=> applyTz(deviceTz(), "Your device");
+$("tzPick").onchange = e=> applyTz(e.target.value, "Manual");
+
+/* ---------------- calendar handoff ---------------- */
+const icsStamp = d => d.toISOString().replace(/[-:]/g,"").split(".")[0]+"Z";
+const esc = s => s.replace(/([,;\\])/g,"\\$1");
+
+$("icsBtn").onclick = ()=>{
+  if(!S.shutMs) return;
+  const legal = new Date(S.shutMs + RESET_HOURS*3600e3);
+  const end = new Date(legal.getTime() + 15*60e3);
+  const started = clockOf(new Date(S.shutMs), S.tz)+" "+dayOf(new Date(S.shutMs), S.tz);
+  const ics = [
+    "BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//Team ETA//34 Reset//EN",
+    "CALSCALE:GREGORIAN","METHOD:PUBLISH","BEGIN:VEVENT",
+    "UID:reset34-"+S.shutMs+"@team-eta",
+    "DTSTAMP:"+icsStamp(new Date()),
+    "DTSTART:"+icsStamp(legal),
+    "DTEND:"+icsStamp(end),
+    "SUMMARY:70 hours restored - back on duty",
+    "DESCRIPTION:"+esc("34-hour restart complete. Shut down "+started+" "+tzTag(S.tz)+"."),
+    "BEGIN:VALARM","TRIGGER:-PT30M","ACTION:DISPLAY",
+    "DESCRIPTION:70 hours restored in 30 minutes","END:VALARM",
+    "BEGIN:VALARM","TRIGGER:PT0S","ACTION:DISPLAY",
+    "DESCRIPTION:70 hours restored - you are legal","END:VALARM",
+    "END:VEVENT","END:VCALENDAR"
+  ].join("\r\n");
+
+  // Always surface the fallback — if the handoff is blocked, the driver still has the number.
+  show($("manual"), true);
+
+  const a = document.createElement("a");
+  try{
+    if(!inFrame && typeof URL.createObjectURL === "function" && "download" in a){
+      const url = URL.createObjectURL(new Blob([ics], {type:"text/calendar;charset=utf-8"}));
+      a.href = url; a.download = "34-reset.ics";
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(()=>URL.revokeObjectURL(url), 1000);
+      return;
+    }
+  }catch(e){ /* fall through to the data URI */ }
+  try{
+    if(!inFrame) location.href = "data:text/calendar;charset=utf-8," + encodeURIComponent(ics);
+  }catch(e){ /* the manual stamp above is the last resort */ }
+};
+
+/* ---------------- render ---------------- */
+function render(){
+  $("tzChip").textContent = S.tzName + " · " + tzTag(S.tz);
+  $("tzPick").value = S.tz;
+
+  if(!S.shutMs){
+    $("bigLabel").textContent = "Legal at";
+    $("bigClock").textContent = "--:--";
+    $("bigDay").textContent = "Set the time you shut down.";
+    ["count","bars","scale","manual"].forEach(id=>show($(id), false));
+    // Nothing to add, nothing to break, nothing to clear.
+    $("icsBtn").disabled = true;
+    $("resetBtn").disabled = true; resetGuard.disarm();
+    $("clearBtn").disabled = true; clearGuard.disarm();
+    return;
+  }
+  $("icsBtn").disabled = false;
+  $("resetBtn").disabled = false;
+  $("clearBtn").disabled = false;
+
+  const shut  = new Date(S.shutMs);
+  const legal = new Date(S.shutMs + RESET_HOURS*3600e3);
+  const now = Date.now();
+  const elapsedH = (now - S.shutMs)/3600e3;
+  const done = now >= legal.getTime();
+  const pending = now < S.shutMs;          // a reset planned but not started yet
+
+  $("bigLabel").textContent = done ? "Legal now · 70 hours back" : "Legal at · "+tzTag(S.tz);
+  $("bigClock").textContent = clockOf(legal, S.tz);
+  $("bigDay").textContent = dayOf(legal, S.tz);
+  $("bigClock").classList.toggle("done", done);
+  $("readout").classList.toggle("done", done);
+  $("stamp").textContent = clockOf(legal,S.tz)+" · "+dayOf(legal,S.tz)+" · "+tzTag(S.tz);
+
+  ["count","bars","scale"].forEach(id=>show($(id), true));
+
+  if(pending){
+    $("count").innerHTML = "Clock starts in <b>"+hms(S.shutMs-now)+"</b> · "+
+      clockOf(shut,S.tz)+" "+dayOf(shut,S.tz);
+  } else if(done){
+    $("count").innerHTML = "<b>Complete.</b> Ran out "+hm(elapsedH-RESET_HOURS)+" ago.";
+  } else {
+    $("count").innerHTML = "<b>"+hms(legal.getTime()-now)+"</b> to go · "+
+      hm(elapsedH)+" of "+RESET_HOURS+"h done";
+  }
+
+  const bars = $("bars").children;
+  const full = pending ? 0 : Math.floor(elapsedH);
+  for(let i=0;i<RESET_HOURS;i++)
+    bars[i].className = i < full ? "on" : (i === full && !done && !pending ? "now" : "");
+  $("bars").classList.toggle("done", done);
+}
+
+/* boot */
+if(S.shutMs) $("shut").value = toWall(new Date(S.shutMs), S.tz);
+render();
+setInterval(render, 1000);
+</script>
+</body>
+</html>
