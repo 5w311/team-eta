@@ -17,7 +17,8 @@ no API, no signal required.
 
 | File | What it is |
 |---|---|
-| `index.html` | The entire app — markup, styles, logic. No dependencies. |
+| `index.html` | The app — markup, styles, and all the DOM wiring. Loads `lib/logic.js`. |
+| `lib/logic.js` | The pure logic — timezone resolver, ETA solver, 34-reset and ICS math. No DOM, no dependencies. Imported by the app and covered by the test suite. |
 | `sw.js` | Service worker. Caches everything so it works with zero bars. |
 | `manifest.webmanifest` | Makes it installable to the home screen. |
 | `icon-192.png` `icon-512.png` `apple-touch-icon.png` | App icons. |
@@ -100,6 +101,27 @@ Presets retuned to real team numbers:
 ### v1.0
 
 Initial release. Two models, offline timezone resolver, appointment cushion, installable PWA.
+
+## Tests
+
+The correctness-critical logic — timezone math, the iterative ETA solver, the swap
+schedule, and the DST-proof 34-hour reset — lives in `lib/logic.js` with no DOM
+dependencies, so it runs under [Vitest](https://vitest.dev/) in plain Node.
+
+```
+npm install
+npm test              # one-shot unit run (Vitest)
+npm run test:watch
+npm run test:browser  # end-to-end smoke test in a real browser (Playwright)
+```
+
+Tests live in `test/`. The Vitest suite covers the `(start, end]` swap boundaries and DST
+edge cases, the fixed-point ETA (including the zero-swap short run and the fuel
+off-by-one), `fromWall`/`toWall` round-trips, the full split-state city table, and the
+claim that the 34 counts 34 *real* elapsed hours across both DST transitions. The browser
+smoke test (`test/smoke.browser.mjs`) serves the app over HTTP and confirms `index.html`
+loads `lib/logic.js` as a module and renders a computed arrival. CI runs both on every push
+(`.github/workflows/test.yml`).
 
 ## Updating the app
 
