@@ -371,7 +371,12 @@
   <div class="foot" style="text-align:center;opacity:.55">MilesPost v2.0.1</div>
 </div>
 
-<script>
+<script type="module">
+import {
+  resolvePlace, ZONE_LIST, deviceTz, tzTag, fromWall, toWall, clockOf, dayOf, hm, hms,
+  RATE, PRESETS, PRESET_VERSION, SWAP_DEFAULT, solveEta, RESET_HOURS, icsStamp, esc
+} from "./lib/logic.js";
+
 /* ======================= theme ======================= */
 const THEME_KEY = "milespost.theme";
 let theme = document.documentElement.getAttribute("data-theme") || "night";
@@ -389,129 +394,8 @@ document.getElementById("themeBtn").onclick = () =>
   applyTheme(theme === "day" ? "night" : "day");
 applyTheme(theme);
 
-/* ======================= timezone resolver ======================= */
-const Z = { E:"America/New_York", C:"America/Chicago", M:"America/Denver",
-  P:"America/Los_Angeles", AZ:"America/Phoenix", AK:"America/Anchorage", HI:"Pacific/Honolulu" };
-
-const STATE_TZ = {
-  CT:"E",DE:"E",DC:"E",GA:"E",ME:"E",MD:"E",MA:"E",NH:"E",NJ:"E",NY:"E",NC:"E",OH:"E",
-  PA:"E",RI:"E",SC:"E",VT:"E",VA:"E",WV:"E",
-  AL:"C",AR:"C",IL:"C",IA:"C",LA:"C",MN:"C",MS:"C",MO:"C",OK:"C",WI:"C",
-  CO:"M",MT:"M",NM:"M",UT:"M",WY:"M",
-  CA:"P",WA:"P",NV:"P",
-  AZ:"AZ",AK:"AK",HI:"HI"
-};
-const SPLIT = {
-  TX:{def:"C",cities:{"el paso":"M",socorro:"M","horizon city":"M",anthony:"M",fabens:"M",
-      "van horn":"M","sierra blanca":"M"}},
-  FL:{def:"E",cities:{pensacola:"C","panama city":"C","fort walton beach":"C",destin:"C",
-      crestview:"C",milton:"C",niceville:"C",marianna:"C",chipley:"C","de funiak springs":"C",
-      "defuniak springs":"C",bonifay:"C","gulf breeze":"C",navarre:"C"}},
-  TN:{def:null,cities:{nashville:"C",memphis:"C",jackson:"C",clarksville:"C",murfreesboro:"C",
-      franklin:"C",cookeville:"C",dickson:"C",columbia:"C","spring hill":"C",lebanon:"C",
-      smyrna:"C",gallatin:"C",hendersonville:"C",knoxville:"E",chattanooga:"E","johnson city":"E",
-      kingsport:"E",bristol:"E",cleveland:"E",morristown:"E",crossville:"E",athens:"E",
-      sevierville:"E","oak ridge":"E",maryville:"E",greeneville:"E"}},
-  KY:{def:null,cities:{louisville:"E",lexington:"E",covington:"E",florence:"E",frankfort:"E",
-      richmond:"E",georgetown:"E",elizabethtown:"E",london:"E",corbin:"E",danville:"E",
-      winchester:"E",somerset:"E","mount sterling":"E",ashland:"E","bowling green":"C",
-      paducah:"C",owensboro:"C",hopkinsville:"C",henderson:"C",madisonville:"C",
-      "central city":"C",cadiz:"C"}},
-  IN:{def:"E",cities:{gary:"C",hammond:"C",evansville:"C",merrillville:"C",portage:"C",
-      valparaiso:"C","michigan city":"C",jasper:"C"}},
-  ND:{def:"C",cities:{dickinson:"M",bowman:"M",beach:"M",hettinger:"M"}},
-  SD:{def:"C",cities:{"rapid city":"M",spearfish:"M",sturgis:"M","belle fourche":"M",
-      "hot springs":"M",custer:"M",pierre:"C"}},
-  NE:{def:"C",cities:{scottsbluff:"M",sidney:"M",chadron:"M",kimball:"M",alliance:"M",
-      ogallala:"M","north platte":"C"}},
-  KS:{def:"C",cities:{goodland:"M","sharon springs":"M",colby:"C"}},
-  ID:{def:"M",cities:{"coeur d'alene":"P","coeur dalene":"P","post falls":"P",sandpoint:"P",
-      moscow:"P",lewiston:"P","bonners ferry":"P"}},
-  OR:{def:"P",cities:{ontario:"M"}},
-  MI:{def:"E",cities:{menominee:"C","iron mountain":"C",ironwood:"C",escanaba:"E"}}
-};
-const STATE_NAMES = {alabama:"AL",alaska:"AK",arizona:"AZ",arkansas:"AR",california:"CA",
-  colorado:"CO",connecticut:"CT",delaware:"DE",florida:"FL",georgia:"GA",hawaii:"HI",idaho:"ID",
-  illinois:"IL",indiana:"IN",iowa:"IA",kansas:"KS",kentucky:"KY",louisiana:"LA",maine:"ME",
-  maryland:"MD",massachusetts:"MA",michigan:"MI",minnesota:"MN",mississippi:"MS",missouri:"MO",
-  montana:"MT",nebraska:"NE",nevada:"NV","new hampshire":"NH","new jersey":"NJ","new mexico":"NM",
-  "new york":"NY","north carolina":"NC","north dakota":"ND",ohio:"OH",oklahoma:"OK",oregon:"OR",
-  pennsylvania:"PA","rhode island":"RI","south carolina":"SC","south dakota":"SD",tennessee:"TN",
-  texas:"TX",utah:"UT",vermont:"VT",virginia:"VA",washington:"WA","west virginia":"WV",
-  wisconsin:"WI",wyoming:"WY","district of columbia":"DC"};
-
-const ZONE_LIST = ["America/New_York","America/Chicago","America/Denver","America/Phoenix",
-  "America/Los_Angeles","America/Anchorage","Pacific/Honolulu"];
-
-const titleCase = s => s.split(" ").map(w => w ? w[0].toUpperCase()+w.slice(1) : w).join(" ");
-
-function resolvePlace(raw){
-  const norm = raw.toLowerCase().replace(/[.,]/g," ").replace(/\s+/g," ").trim();
-  if(!norm) return null;
-  const words = norm.split(" ");
-  let st=null, cityWords=words;
-  for(const n of [3,2,1]){
-    if(words.length>=n){
-      const cand = words.slice(-n).join(" ");
-      if(STATE_NAMES[cand]){ st=STATE_NAMES[cand]; cityWords=words.slice(0,-n); break; }
-    }
-  }
-  if(!st){
-    const last = words[words.length-1].toUpperCase();
-    if(last.length===2 && (STATE_TZ[last]||SPLIT[last])){ st=last; cityWords=words.slice(0,-1); }
-  }
-  if(!st) return null;
-  const city = cityWords.join(" ").trim();
-  const label = city ? titleCase(city)+", "+st
-    : titleCase(Object.keys(STATE_NAMES).find(k=>STATE_NAMES[k]===st)||st);
-  if(STATE_TZ[st]) return {tz:Z[STATE_TZ[st]], place:label};
-  const sp = SPLIT[st];
-  if(sp){
-    if(city && sp.cities[city]) return {tz:Z[sp.cities[city]], place:label};
-    if(sp.def) return {tz:Z[sp.def], place:label};
-  }
-  return null;
-}
-
-/* ======================= time helpers ======================= */
-const deviceTz = () => { try{ return Intl.DateTimeFormat().resolvedOptions().timeZone; }
-  catch{ return "America/New_York"; } };
-const tzTag = tz => { try{
-  return new Intl.DateTimeFormat("en-US",{timeZone:tz,timeZoneName:"short"})
-    .formatToParts(new Date()).find(p=>p.type==="timeZoneName").value;
-} catch { return tz; } };
-const offsetMs = (date,tz) => {
-  const p = new Intl.DateTimeFormat("en-US",{timeZone:tz,hour12:false,year:"numeric",month:"2-digit",
-    day:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit"})
-    .formatToParts(date).reduce((a,x)=>(a[x.type]=x.value,a),{});
-  return Date.UTC(+p.year,p.month-1,+p.day,p.hour%24,+p.minute,+p.second) - date.getTime();
-};
-const fromWall = (wall,tz) => {
-  if(!wall) return null;
-  const naive = Date.parse((wall.length===16 ? wall+":00" : wall)+"Z");
-  if(isNaN(naive)) return null;
-  let ts = naive - offsetMs(new Date(naive),tz);
-  ts = naive - offsetMs(new Date(ts),tz);
-  return new Date(ts);
-};
-const toWall = (date,tz) => {
-  const p = new Intl.DateTimeFormat("en-CA",{timeZone:tz,hour12:false,year:"numeric",month:"2-digit",
-    day:"2-digit",hour:"2-digit",minute:"2-digit"})
-    .formatToParts(date).reduce((a,x)=>(a[x.type]=x.value,a),{});
-  const h = p.hour%24===0 ? "00" : p.hour;
-  return `${p.year}-${p.month}-${p.day}T${h}:${p.minute}`;
-};
-const clockOf = (d,tz) => new Intl.DateTimeFormat("en-US",{timeZone:tz,hour:"2-digit",
-  minute:"2-digit",hour12:false}).format(d);
-const dayOf = (d,tz) => new Intl.DateTimeFormat("en-US",{timeZone:tz,weekday:"short",
-  month:"short",day:"numeric"}).format(d);
-const hm = h => { const s=Math.round(Math.abs(h)*60);
-  return Math.floor(s/60)+"h "+String(s%60).padStart(2,"0")+"m"; };
-const hms = ms => {
-  const t = Math.max(0, Math.floor(ms/1000));
-  return Math.floor(t/3600)+"h "+String(Math.floor(t%3600/60)).padStart(2,"0")+"m "+
-    String(t%60).padStart(2,"0")+"s";
-};
+/* Timezone tables, the resolver, and all time/format helpers now live in
+   ./lib/logic.js (imported above) so they can be unit-tested. */
 
 const $ = id => document.getElementById(id);
 const show = (el,on) => el.classList.toggle("hide", !on);
@@ -526,33 +410,8 @@ const loadJSON = (...keys) => {
 };
 
 /* ======================= ETA ======================= */
-const RATE = 50;                      // dispatch always plans at miles ÷ 50
-const PRESETS = {
-  Conservative:{mph:64,fuelEvery:500,fuelMin:15,swapMin:40,restEvery:4,restMin:20},
-  Realistic:{mph:65,fuelEvery:650,fuelMin:15,swapMin:35,restEvery:5,restMin:20},
-  Push:{mph:68,fuelEvery:800,fuelMin:20,swapMin:30,restEvery:6,restMin:15}
-};
-const PRESET_VERSION = 3;             // bump when PRESETS change, or saved copies override them
-const SWAP_DEFAULT = { times:["06:00","18:00"], tz:"America/New_York" };
-
-// Every instant in (start, end] where the wall clock in `tz` hits one of `times`.
-function swapTimes(start, end, tz, times){
-  const out = [];
-  if(!(end > start)) return out;
-  let [Y,Mo,D] = toWall(start, tz).slice(0,10).split("-").map(Number);
-  for(let guard=0; guard<400; guard++){
-    const ds = Y+"-"+String(Mo).padStart(2,"0")+"-"+String(D).padStart(2,"0");
-    for(const hhmm of times){
-      const t = fromWall(ds+"T"+hhmm, tz);
-      if(t && t > start && t <= end) out.push(t);
-    }
-    const nx = new Date(Date.UTC(Y, Mo-1, D+1));   // calendar math, DST-proof
-    Y=nx.getUTCFullYear(); Mo=nx.getUTCMonth()+1; D=nx.getUTCDate();
-    const dayStart = fromWall(Y+"-"+String(Mo).padStart(2,"0")+"-"+String(D).padStart(2,"0")+"T00:00", tz);
-    if(dayStart > end) break;
-  }
-  return out.sort((a,b)=>a-b);
-}
+/* RATE, PRESETS, PRESET_VERSION, SWAP_DEFAULT, swapTimes, and the solveEta
+   fixed-point solver are imported from ./lib/logic.js. */
 
 const E = {
   mode:"quick", preset:"Realistic", p:{...PRESETS.Realistic},
@@ -684,29 +543,8 @@ function renderEta(){
     return;
   }
 
-  const mph = Number(E.p.mph)||1;
-  const driveH = M/mph;
-  const fuelStops = Math.max(0, Math.ceil(M/(Number(E.p.fuelEvery)||9999))-1);
-
-  /* Swaps land on a fixed clock, so their count depends on the arrival time — which
-     depends on how many swaps we took. Iterate to a fixed point; each pass only adds
-     stops, so it converges (2-3 passes). */
-  let totalH = driveH, swaps = [], restStops = 0, stopH = 0;
-  for(let i=0;i<8;i++){
-    const end = new Date(start.getTime() + totalH*3600e3);
-    swaps = swapTimes(start, end, E.swap.tz, E.swap.times);
-    restStops = Math.max(0,
-      Math.ceil(driveH/(Number(E.p.restEvery)||999)) - 1 - fuelStops - swaps.length);
-    stopH = (swaps.length*(Number(E.p.swapMin)||0)
-           + fuelStops*(Number(E.p.fuelMin)||0)
-           + restStops*(Number(E.p.restMin)||0)) / 60;
-    const next = driveH + stopH;
-    if(Math.abs(next-totalH) < 1e-4){ totalH = next; break; }
-    totalH = next;
-  }
-  const tunedEta = new Date(start.getTime() + totalH*3600e3);
-  const quickH = M/RATE;
-  const quickEta = new Date(start.getTime() + quickH*3600e3);
+  const { driveH, fuelStops, swaps, restStops, stopH, totalH, tunedEta, quickH, quickEta } =
+    solveEta({ miles:M, p:E.p, swap:E.swap, startMs:start.getTime() });
   const eta = E.mode==="quick" ? quickEta : tunedEta;
 
   $("etaClock").textContent = clockOf(eta, showTz);
@@ -765,7 +603,7 @@ function renderEta(){
 }
 
 /* ======================= 34 RESET ======================= */
-const RESET_HOURS = 34;
+/* RESET_HOURS is imported from ./lib/logic.js. */
 const R = { shutMs:null, tz:deviceTz(), tzName:"Your device" };
 (()=>{
   const s = loadJSON("milespost.reset", "teamEta34");
@@ -854,8 +692,6 @@ const brokeGuard = twoTap($("rsBroke"), "BROKE THE 34 — RESTART FROM NOW",
   "TAP AGAIN TO RESTART FROM NOW", rsRestart);
 const clearGuard = twoTap($("rsClear"), "CLEAR TIMER", "TAP AGAIN TO CLEAR", rsClearAll);
 
-const icsStamp = d => d.toISOString().replace(/[-:]/g,"").split(".")[0]+"Z";
-const esc = s => s.replace(/([,;\\])/g,"\\$1");
 $("icsBtn").onclick = ()=>{
   if(!R.shutMs) return;
   const legal = new Date(R.shutMs + RESET_HOURS*3600e3);
