@@ -11,7 +11,7 @@ back, and hand a real alarm to your phone's Calendar.
 Resolves timezones from a town name. Day and night modes. **Runs 100% offline** — no server,
 no API, no signal required.
 
-**Current version: v2.0.2**
+**Current version: v2.1**
 
 ## Files
 
@@ -49,6 +49,14 @@ worker cached it on first load.
   keeps rolling through driver swaps. The 11/14 and the 70-hour cycle are still on you.
 
 ## Version history
+
+### v2.1
+
+- **"Who's driving on arrival."** The Tuned Model view now shows *day shift driving* or
+  *night shift driving* under the arrival time — which team driver is behind the wheel when
+  you roll in, read off the fixed-clock swap schedule. Display-only, no new inputs. Not shown
+  on Estimated, which has no swap concept. The `shiftAtArrival` logic lives in `lib/logic.js`
+  with its own tests, including exact-swap boundaries and custom (non-06/18) schedules.
 
 ### v2.0.2
 

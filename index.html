@@ -230,6 +230,7 @@
       <div class="big" id="etaClock">--:--</div>
       <div class="day" id="etaDay">Enter miles and a departure time.</div>
       <div class="sub hide" id="etaYours"></div>
+      <div class="sub hide" id="etaShift"></div>
       <div class="note hide" id="quickNote"></div>
       <div class="strip hide" id="strip"></div>
       <div class="legend hide" id="legend"></div>
@@ -368,13 +369,13 @@
       right across a DST change.</div>
   </div>
 
-  <div class="foot" style="text-align:center;opacity:.55">MilesPost v2.0.2</div>
+  <div class="foot" style="text-align:center;opacity:.55">MilesPost v2.1</div>
 </div>
 
 <script type="module">
 import {
   resolvePlace, ZONE_LIST, deviceTz, tzTag, fromWall, toWall, clockOf, dayOf, hm, hms,
-  RATE, PRESETS, PRESET_VERSION, SWAP_DEFAULT, solveEta, RESET_HOURS, icsStamp, esc
+  RATE, PRESETS, PRESET_VERSION, SWAP_DEFAULT, solveEta, shiftAtArrival, RESET_HOURS, icsStamp, esc
 } from "./lib/logic.js";
 
 /* ======================= theme ======================= */
@@ -536,7 +537,7 @@ function renderEta(){
 
   const M = Number($("miles").value) || 0;
   const start = fromWall($("depart").value, E.originTz);
-  ["etaYours","quickNote","strip","legend","cushion"].forEach(id=>show($(id),false));
+  ["etaYours","etaShift","quickNote","strip","legend","cushion"].forEach(id=>show($(id),false));
   if(!(M > 0 && start)){
     $("etaClock").textContent = "--:--";
     $("etaDay").textContent = "Enter miles and a departure time.";
@@ -562,6 +563,12 @@ function renderEta(){
       "</span> all-in<br>Tuned model says "+clockOf(tunedEta,showTz)+" ("+hm(diffH)+" "+
       (diffH<=0 ? "ahead of" : "behind")+" dispatch)";
   } else {
+    // Who's behind the wheel when we roll in — swaps run on a fixed clock, so arrival
+    // time picks the shift. Tuned view only; Estimated has no swap concept.
+    show($("etaShift"), true);
+    $("etaShift").textContent =
+      shiftAtArrival(eta, E.swap) === "day" ? "day shift driving" : "night shift driving";
+
     // Lay every stop on the timeline: swaps by clock, fuel by odometer, stretches evenly.
     const stops = [];
     swaps.forEach(t => stops.push({k:"swap", min:Number(E.p.swapMin)||0,
