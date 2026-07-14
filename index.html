@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Team ETA</title>
+<meta name="theme-color" content="#0B0E10">
+<meta name="description" content="Team-driver ETA calculator. Works offline.">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" href="./apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Team ETA">
+<style>
+  :root{
+    --asphalt:#0B0E10; --panel:#14181C; --line:#2B333A;
+    --amber:#FFB020; --amber-dim:#7A5511; --reefer:#5AC8E8;
+    --good:#4FD18B; --late:#FF5D52; --ink:#E7EDF2; --mute:#7C8B96;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--asphalt);color:var(--ink);font-family:var(--sans);
+    -webkit-text-size-adjust:100%}
+  body{padding:16px calc(16px + env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom))
+    calc(16px + env(safe-area-inset-left)); padding-top:calc(16px + env(safe-area-inset-top))}
+  .wrap{max-width:470px;margin:0 auto}
+
+  .brand{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px}
+  .brand b{font-family:var(--mono);font-size:12px;letter-spacing:.22em;color:var(--amber);font-weight:400}
+  .brand span{font-family:var(--mono);font-size:10px;letter-spacing:.14em;color:var(--mute)}
+
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;
+    padding:16px;margin-bottom:14px}
+  .readout{border-top:2px solid var(--amber);padding:18px}
+
+  label,.lbl{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.14em;
+    text-transform:uppercase;color:var(--mute);margin-bottom:6px}
+
+  input,select{width:100%;background:var(--asphalt);color:var(--ink);border:1px solid var(--line);
+    border-radius:6px;padding:11px 12px;font-family:var(--mono);font-size:16px;outline:none;
+    -webkit-appearance:none;appearance:none}
+  input[type=number]::-webkit-inner-spin-button{display:none}
+  :focus-visible{box-shadow:0 0 0 2px var(--amber)}
+  .row{display:flex;gap:8px}
+  .row > input{flex:1}
+  .fieldwrap{position:relative}
+  .suffix{position:absolute;right:12px;top:12px;font-family:var(--mono);font-size:12px;color:var(--mute);
+    pointer-events:none}
+  .group{margin-bottom:14px}
+
+  button{font-family:var(--mono);cursor:pointer;border-radius:6px;border:1px solid var(--line);
+    background:transparent;color:var(--mute);font-size:12px;letter-spacing:.08em}
+  .go{background:var(--reefer);color:var(--asphalt);border:none;padding:0 16px}
+  .ghost{color:var(--reefer);border-color:var(--reefer);padding:0 14px}
+  .tabs{display:flex;gap:6px;margin-bottom:14px}
+  .tabs button{flex:1;padding:10px 0;font-size:11px;letter-spacing:.1em}
+  .tabs button[aria-selected=true]{background:var(--amber);color:var(--asphalt);border-color:var(--amber)}
+  .presets{display:flex;gap:6px;margin-bottom:12px}
+  .presets button{flex:1;padding:9px 0;font-size:11px;text-transform:uppercase}
+  .presets button[aria-selected=true]{background:var(--amber);color:var(--asphalt);border-color:var(--amber)}
+  .link{background:none;border:none;color:var(--reefer);font-size:11px;padding:0;
+    text-decoration:underline}
+
+  .eta{font-family:var(--mono);font-size:46px;font-weight:700;color:var(--amber);
+    letter-spacing:-.02em;line-height:1;font-variant-numeric:tabular-nums}
+  .day{font-family:var(--mono);font-size:13px;margin-top:6px}
+  .yours{font-family:var(--mono);font-size:12px;color:var(--mute);margin-top:10px;padding-top:10px;
+    border-top:1px solid var(--line)}
+  .note{font-family:var(--mono);font-size:12px;color:var(--mute);line-height:1.7;margin-top:14px}
+  .strip{display:flex;height:12px;margin-top:16px;border-radius:3px;overflow:hidden;
+    border:1px solid var(--line)}
+  .strip i{display:block}
+  .strip i.d{background:var(--amber)}
+  .strip i.s{background:var(--amber-dim);min-width:2px}
+  .legend{display:flex;justify-content:space-between;font-family:var(--mono);font-size:10px;
+    color:var(--mute);margin-top:6px;letter-spacing:.08em}
+  .cushion{margin-top:14px;padding:10px 12px;border-radius:6px;font-family:var(--mono);font-size:13px}
+  .cushion.ok{background:rgba(79,209,139,.10);border:1px solid var(--good);color:var(--good)}
+  .cushion.bad{background:rgba(255,93,82,.10);border:1px solid var(--late);color:var(--late)}
+  .chip{display:inline-block;font-family:var(--mono);font-size:11px;color:var(--reefer);
+    border:1px solid var(--reefer);border-radius:999px;padding:3px 10px;letter-spacing:.04em}
+  .chip.grey{color:var(--mute);border-color:var(--mute)}
+  .err{font-family:var(--mono);font-size:11px;color:var(--late);margin-top:8px}
+  .rate{display:flex;align-items:center;gap:10px}
+  .rate span{font-family:var(--mono);font-size:14px;color:var(--mute)}
+  .rate .fieldwrap{width:110px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+  .meta{display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap}
+  .foot{font-family:var(--mono);font-size:10px;color:var(--mute);line-height:1.8;margin-top:14px;
+    letter-spacing:.03em}
+  .hide{display:none !important}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand"><b>TEAM ETA</b><span>WHEELS NEVER STOP</span></div>
+
+  <div class="tabs" role="tablist">
+    <button id="tabQuick" role="tab" aria-selected="true">COMPANY ÷50</button>
+    <button id="tabTuned" role="tab" aria-selected="false">TUNED MODEL</button>
+  </div>
+
+  <!-- readout -->
+  <div class="card readout">
+    <div class="lbl" id="etaLabel">Arrival</div>
+    <div class="eta" id="etaClock">--:--</div>
+    <div class="day" id="etaDay">Enter miles and a departure time.</div>
+    <div class="yours hide" id="etaYours"></div>
+    <div class="note hide" id="quickNote"></div>
+    <div class="strip hide" id="strip"></div>
+    <div class="legend hide" id="legend"></div>
+    <div class="cushion hide" id="cushion"></div>
+  </div>
+
+  <!-- the load -->
+  <div class="card">
+    <div class="group">
+      <label for="miles">Miles remaining</label>
+      <div class="fieldwrap">
+        <input id="miles" type="number" inputmode="decimal" value="1200">
+        <span class="suffix">mi</span>
+      </div>
+    </div>
+
+    <div class="group">
+      <label for="destIn">Destination town</label>
+      <div class="row">
+        <input id="destIn" placeholder="e.g. Laredo, TX" autocomplete="off">
+        <button class="go" id="destSet">SET</button>
+      </div>
+      <div class="meta hide" id="destMeta"><span class="chip" id="destChip"></span></div>
+      <div class="err hide" id="destErr"></div>
+      <select id="destPick" class="hide" style="margin-top:8px"></select>
+    </div>
+
+    <div class="group">
+      <label for="depart">Rolling out</label>
+      <div class="row">
+        <input id="depart" type="datetime-local">
+        <button class="ghost" id="nowBtn">NOW</button>
+      </div>
+      <div class="meta">
+        <span class="chip grey" id="origChip"></span>
+        <button class="link" id="origToggle">change</button>
+      </div>
+      <div class="row hide" id="origEdit" style="margin-top:8px">
+        <input id="origIn" placeholder="Town, ST" autocomplete="off">
+        <button class="go" id="origSet">SET</button>
+        <button id="origDev" style="padding:0 12px">DEVICE</button>
+      </div>
+      <div class="err hide" id="origErr"></div>
+      <select id="origPick" class="hide" style="margin-top:8px"></select>
+    </div>
+
+    <div class="group" style="margin-bottom:0">
+      <label for="appt" id="apptLbl">Appointment (optional)</label>
+      <input id="appt" type="datetime-local">
+    </div>
+  </div>
+
+  <!-- how you run -->
+  <div class="card" id="panelQuick">
+    <div class="lbl">Company rate</div>
+    <div class="rate">
+      <span>miles ÷</span>
+      <div class="fieldwrap"><input id="rate" type="number" inputmode="decimal" value="50"></div>
+      <span>= hours</span>
+    </div>
+    <div class="note">The ÷50 already bakes in stops — it's dispatch's all-in average.
+      Flip to TUNED MODEL to see what your actual pace says.</div>
+  </div>
+
+  <div class="card hide" id="panelTuned">
+    <div class="lbl">How you run</div>
+    <div class="presets" id="presets"></div>
+    <div class="note" id="runNote"></div>
+    <button class="link" id="tuneToggle" style="margin-top:12px">+ TUNE TO YOUR TRUCK</button>
+    <div class="grid hide" id="tuneGrid">
+      <div><div class="lbl">Cruise</div><div class="fieldwrap"><input id="mph" type="number" inputmode="decimal"><span class="suffix">mph</span></div></div>
+      <div><div class="lbl">Fuel every</div><div class="fieldwrap"><input id="fuelEvery" type="number" inputmode="decimal"><span class="suffix">mi</span></div></div>
+      <div><div class="lbl">Fuel + swap</div><div class="fieldwrap"><input id="fuelMin" type="number" inputmode="decimal"><span class="suffix">min</span></div></div>
+      <div><div class="lbl">Stretch every</div><div class="fieldwrap"><input id="restEvery" type="number" inputmode="decimal"><span class="suffix">hr</span></div></div>
+      <div><div class="lbl">Stretch stop</div><div class="fieldwrap"><input id="restMin" type="number" inputmode="decimal"><span class="suffix">min</span></div></div>
+    </div>
+  </div>
+
+  <div class="foot">Team math — no 10-hour reset built in. Each of you still owes the 11/14 and the
+    70-hour cycle, so check your clocks on long runs before you trust this number.</div>
+</div>
+
+<script>
+/* ---------------- timezone data (fully offline) ---------------- */
+const Z = { E:"America/New_York", C:"America/Chicago", M:"America/Denver",
+  P:"America/Los_Angeles", AZ:"America/Phoenix", AK:"America/Anchorage", HI:"Pacific/Honolulu" };
+
+const STATE_TZ = {
+  CT:"E",DE:"E",DC:"E",GA:"E",ME:"E",MD:"E",MA:"E",NH:"E",NJ:"E",NY:"E",NC:"E",OH:"E",
+  PA:"E",RI:"E",SC:"E",VT:"E",VA:"E",WV:"E",
+  AL:"C",AR:"C",IL:"C",IA:"C",LA:"C",MN:"C",MS:"C",MO:"C",OK:"C",WI:"C",
+  CO:"M",MT:"M",NM:"M",UT:"M",WY:"M",
+  CA:"P",WA:"P",NV:"P",
+  AZ:"AZ",AK:"AK",HI:"HI"
+};
+
+const SPLIT = {
+  TX:{def:"C",cities:{"el paso":"M",socorro:"M","horizon city":"M",anthony:"M",fabens:"M",
+      "van horn":"M","sierra blanca":"M"}},
+  FL:{def:"E",cities:{pensacola:"C","panama city":"C","fort walton beach":"C",destin:"C",
+      crestview:"C",milton:"C",niceville:"C",marianna:"C",chipley:"C","de funiak springs":"C",
+      "defuniak springs":"C",bonifay:"C","gulf breeze":"C",navarre:"C"}},
+  TN:{def:null,cities:{nashville:"C",memphis:"C",jackson:"C",clarksville:"C",murfreesboro:"C",
+      franklin:"C",cookeville:"C",dickson:"C",columbia:"C","spring hill":"C",lebanon:"C",
+      smyrna:"C",gallatin:"C",hendersonville:"C",knoxville:"E",chattanooga:"E","johnson city":"E",
+      kingsport:"E",bristol:"E",cleveland:"E",morristown:"E",crossville:"E",athens:"E",
+      sevierville:"E","oak ridge":"E",maryville:"E",greeneville:"E"}},
+  KY:{def:null,cities:{louisville:"E",lexington:"E",covington:"E",florence:"E",frankfort:"E",
+      richmond:"E",georgetown:"E",elizabethtown:"E",london:"E",corbin:"E",danville:"E",
+      winchester:"E",somerset:"E","mount sterling":"E",ashland:"E","bowling green":"C",
+      paducah:"C",owensboro:"C",hopkinsville:"C",henderson:"C",madisonville:"C",
+      "central city":"C",cadiz:"C"}},
+  IN:{def:"E",cities:{gary:"C",hammond:"C",evansville:"C",merrillville:"C",portage:"C",
+      valparaiso:"C","michigan city":"C",jasper:"C"}},
+  ND:{def:"C",cities:{dickinson:"M",bowman:"M",beach:"M",hettinger:"M"}},
+  SD:{def:"C",cities:{"rapid city":"M",spearfish:"M",sturgis:"M","belle fourche":"M",
+      "hot springs":"M",custer:"M",pierre:"C"}},
+  NE:{def:"C",cities:{scottsbluff:"M",sidney:"M",chadron:"M",kimball:"M",alliance:"M",
+      ogallala:"M","north platte":"C"}},
+  KS:{def:"C",cities:{goodland:"M","sharon springs":"M",colby:"C"}},
+  ID:{def:"M",cities:{"coeur d'alene":"P","coeur dalene":"P","post falls":"P",sandpoint:"P",
+      moscow:"P",lewiston:"P","bonners ferry":"P"}},
+  OR:{def:"P",cities:{ontario:"M"}},
+  MI:{def:"E",cities:{menominee:"C","iron mountain":"C",ironwood:"C",escanaba:"E"}}
+};
+
+const STATE_NAMES = {alabama:"AL",alaska:"AK",arizona:"AZ",arkansas:"AR",california:"CA",
+  colorado:"CO",connecticut:"CT",delaware:"DE",florida:"FL",georgia:"GA",hawaii:"HI",idaho:"ID",
+  illinois:"IL",indiana:"IN",iowa:"IA",kansas:"KS",kentucky:"KY",louisiana:"LA",maine:"ME",
+  maryland:"MD",massachusetts:"MA",michigan:"MI",minnesota:"MN",mississippi:"MS",missouri:"MO",
+  montana:"MT",nebraska:"NE",nevada:"NV","new hampshire":"NH","new jersey":"NJ","new mexico":"NM",
+  "new york":"NY","north carolina":"NC","north dakota":"ND",ohio:"OH",oklahoma:"OK",oregon:"OR",
+  pennsylvania:"PA","rhode island":"RI","south carolina":"SC","south dakota":"SD",tennessee:"TN",
+  texas:"TX",utah:"UT",vermont:"VT",virginia:"VA",washington:"WA","west virginia":"WV",
+  wisconsin:"WI",wyoming:"WY","district of columbia":"DC"};
+
+const ZONE_LIST = ["America/New_York","America/Chicago","America/Denver","America/Phoenix",
+  "America/Los_Angeles","America/Anchorage","Pacific/Honolulu"];
+
+const titleCase = s => s.split(" ").map(w => w ? w[0].toUpperCase()+w.slice(1) : w).join(" ");
+
+function resolvePlace(raw){
+  const norm = raw.toLowerCase().replace(/[.,]/g," ").replace(/\s+/g," ").trim();
+  if(!norm) return null;
+  const words = norm.split(" ");
+  let st=null, cityWords=words;
+  for(const n of [3,2,1]){
+    if(words.length>=n){
+      const cand = words.slice(-n).join(" ");
+      if(STATE_NAMES[cand]){ st=STATE_NAMES[cand]; cityWords=words.slice(0,-n); break; }
+    }
+  }
+  if(!st){
+    const last = words[words.length-1].toUpperCase();
+    if(last.length===2 && (STATE_TZ[last]||SPLIT[last])){ st=last; cityWords=words.slice(0,-1); }
+  }
+  if(!st) return null;
+  const city = cityWords.join(" ").trim();
+  const label = city ? titleCase(city)+", "+st
+    : titleCase(Object.keys(STATE_NAMES).find(k=>STATE_NAMES[k]===st)||st);
+  if(STATE_TZ[st]) return {tz:Z[STATE_TZ[st]], place:label};
+  const sp = SPLIT[st];
+  if(sp){
+    if(city && sp.cities[city]) return {tz:Z[sp.cities[city]], place:label};
+    if(sp.def) return {tz:Z[sp.def], place:label};
+  }
+  return null;
+}
+
+/* ---------------- time math ---------------- */
+const deviceTz = () => { try{ return Intl.DateTimeFormat().resolvedOptions().timeZone; }
+  catch{ return "America/New_York"; } };
+const tzTag = tz => { try{
+  return new Intl.DateTimeFormat("en-US",{timeZone:tz,timeZoneName:"short"})
+    .formatToParts(new Date()).find(p=>p.type==="timeZoneName").value;
+} catch { return tz; } };
+const offsetMs = (date,tz) => {
+  const p = new Intl.DateTimeFormat("en-US",{timeZone:tz,hour12:false,year:"numeric",month:"2-digit",
+    day:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit"})
+    .formatToParts(date).reduce((a,x)=>(a[x.type]=x.value,a),{});
+  return Date.UTC(+p.year,p.month-1,+p.day,p.hour%24,+p.minute,+p.second) - date.getTime();
+};
+const fromWall = (wall,tz) => {
+  if(!wall) return null;
+  const naive = Date.parse((wall.length===16 ? wall+":00" : wall)+"Z");
+  if(isNaN(naive)) return null;
+  let ts = naive - offsetMs(new Date(naive),tz);
+  ts = naive - offsetMs(new Date(ts),tz);
+  return new Date(ts);
+};
+const toWall = (date,tz) => {
+  const p = new Intl.DateTimeFormat("en-CA",{timeZone:tz,hour12:false,year:"numeric",month:"2-digit",
+    day:"2-digit",hour:"2-digit",minute:"2-digit"})
+    .formatToParts(date).reduce((a,x)=>(a[x.type]=x.value,a),{});
+  const h = p.hour%24===0 ? "00" : p.hour;
+  return `${p.year}-${p.month}-${p.day}T${h}:${p.minute}`;
+};
+const clockOf = (d,tz) => new Intl.DateTimeFormat("en-US",{timeZone:tz,hour:"2-digit",
+  minute:"2-digit",hour12:false}).format(d);
+const dayOf = (d,tz) => new Intl.DateTimeFormat("en-US",{timeZone:tz,weekday:"short",
+  month:"short",day:"numeric"}).format(d);
+const hm = h => { const s=Math.round(Math.abs(h)*60);
+  return Math.floor(s/60)+"h "+String(s%60).padStart(2,"0")+"m"; };
+
+/* ---------------- state ---------------- */
+const PRESETS = {
+  Conservative:{mph:62,fuelEvery:800,fuelMin:50,restEvery:4,restMin:20},
+  Realistic:{mph:65,fuelEvery:900,fuelMin:40,restEvery:5,restMin:15},
+  Push:{mph:67,fuelEvery:1000,fuelMin:35,restEvery:6,restMin:10}
+};
+const S = {
+  mode:"quick", rate:50, preset:"Realistic", p:{...PRESETS.Realistic},
+  originTz:deviceTz(), originName:"Your device", destTz:null, destName:""
+};
+try{
+  const saved = JSON.parse(localStorage.getItem("teamEta")||"null");
+  if(saved){ Object.assign(S,{mode:saved.mode??S.mode, rate:saved.rate??S.rate,
+    preset:saved.preset??S.preset, p:saved.p??S.p}); }
+}catch{}
+const save = () => { try{ localStorage.setItem("teamEta",
+  JSON.stringify({mode:S.mode,rate:S.rate,preset:S.preset,p:S.p})); }catch{} };
+
+const $ = id => document.getElementById(id);
+const show = (el,on) => el.classList.toggle("hide", !on);
+
+/* ---------------- build controls ---------------- */
+ZONE_LIST.forEach(z=>{
+  for(const sel of [$("destPick"),$("origPick")]){
+    const o=document.createElement("option"); o.value=z; o.textContent=tzTag(z)+" — "+z;
+    sel.appendChild(o);
+  }
+});
+Object.keys(PRESETS).forEach(k=>{
+  const b=document.createElement("button"); b.textContent=k; b.dataset.k=k;
+  b.onclick=()=>{ S.preset=k; S.p={...PRESETS[k]}; syncTune(); save(); render(); };
+  $("presets").appendChild(b);
+});
+const syncTune = () => {
+  ["mph","fuelEvery","fuelMin","restEvery","restMin"].forEach(k=>{ $(k).value = S.p[k]; });
+  [...$("presets").children].forEach(b =>
+    b.setAttribute("aria-selected", String(b.dataset.k===S.preset)));
+};
+["mph","fuelEvery","fuelMin","restEvery","restMin"].forEach(k=>{
+  $(k).addEventListener("input", e=>{
+    S.p[k] = e.target.value==="" ? "" : Number(e.target.value);
+    S.preset="Custom"; syncTune(); save(); render();
+  });
+});
+$("rate").value = S.rate;
+$("rate").addEventListener("input", e=>{ S.rate=e.target.value; save(); render(); });
+$("miles").addEventListener("input", render);
+$("appt").addEventListener("input", render);
+$("depart").addEventListener("input", render);
+$("nowBtn").onclick = ()=>{ $("depart").value = toWall(new Date(), S.originTz); render(); };
+$("tuneToggle").onclick = ()=>{
+  const on = $("tuneGrid").classList.contains("hide");
+  show($("tuneGrid"), on);
+  $("tuneToggle").textContent = on ? "− HIDE TUNING" : "+ TUNE TO YOUR TRUCK";
+};
+const setMode = m => {
+  S.mode=m; save();
+  $("tabQuick").setAttribute("aria-selected", String(m==="quick"));
+  $("tabTuned").setAttribute("aria-selected", String(m==="tuned"));
+  show($("panelQuick"), m==="quick");
+  show($("panelTuned"), m==="tuned");
+  render();
+};
+$("tabQuick").onclick = ()=>setMode("quick");
+$("tabTuned").onclick = ()=>setMode("tuned");
+
+/* destination */
+const doDest = () => {
+  const raw = $("destIn").value.trim();
+  if(!raw) return;
+  const r = resolvePlace(raw);
+  if(r){
+    S.destTz=r.tz; S.destName=r.place;
+    show($("destErr"),false); show($("destPick"),false);
+  } else {
+    show($("destErr"),true);
+    $("destErr").textContent = "Couldn't place that. Add the state (\"Laredo, TX\"), or pick a zone:";
+    show($("destPick"),true);
+  }
+  render();
+};
+$("destSet").onclick = doDest;
+$("destIn").addEventListener("keydown", e=>{ if(e.key==="Enter") doDest(); });
+$("destPick").onchange = e=>{ S.destTz=e.target.value; S.destName="";
+  show($("destErr"),false); show($("destPick"),false); render(); };
+
+/* origin */
+$("origToggle").onclick = ()=>{
+  const on = $("origEdit").classList.contains("hide");
+  show($("origEdit"), on);
+  $("origToggle").textContent = on ? "close" : "change";
+};
+const doOrig = () => {
+  const raw = $("origIn").value.trim();
+  if(!raw) return;
+  const r = resolvePlace(raw);
+  if(r){
+    S.originTz=r.tz; S.originName=r.place;
+    $("origIn").value=""; show($("origEdit"),false); $("origToggle").textContent="change";
+    show($("origErr"),false); show($("origPick"),false);
+  } else {
+    show($("origErr"),true);
+    $("origErr").textContent = "Couldn't place that — add the state, or pick a zone:";
+    show($("origPick"),true);
+  }
+  render();
+};
+$("origSet").onclick = doOrig;
+$("origIn").addEventListener("keydown", e=>{ if(e.key==="Enter") doOrig(); });
+$("origDev").onclick = ()=>{
+  S.originTz=deviceTz(); S.originName="Your device";
+  show($("origEdit"),false); $("origToggle").textContent="change";
+  show($("origErr"),false); show($("origPick"),false); render();
+};
+$("origPick").onchange = e=>{ S.originTz=e.target.value; S.originName="Manual";
+  show($("origErr"),false); show($("origPick"),false); show($("origEdit"),false);
+  $("origToggle").textContent="change"; render(); };
+
+/* ---------------- render ---------------- */
+function render(){
+  const showTz = S.destTz || S.originTz;
+  $("origChip").textContent = S.originName + " · " + tzTag(S.originTz);
+  show($("destMeta"), !!S.destName);
+  if(S.destName) $("destChip").textContent = S.destName + " · " + tzTag(S.destTz);
+  $("apptLbl").textContent = "Appointment · " + tzTag(showTz) + " (optional)";
+  $("etaLabel").textContent = "Arrival · " + (S.destName
+    ? S.destName + " · " + tzTag(S.destTz)
+    : S.destTz ? "Destination · " + tzTag(S.destTz)
+    : "Your clock · " + tzTag(S.originTz) + " — set a destination below");
+  $("tabQuick").textContent = "COMPANY ÷" + (Number(S.rate)>0 ? Number(S.rate) : 50);
+
+  const M = Number($("miles").value) || 0;
+  const start = fromWall($("depart").value, S.originTz);
+  const ready = M > 0 && start;
+
+  ["etaYours","quickNote","strip","legend","cushion"].forEach(id=>show($(id),false));
+  if(!ready){
+    $("etaClock").textContent = "--:--";
+    $("etaDay").textContent = "Enter miles and a departure time.";
+    return;
+  }
+
+  const mph = Number(S.p.mph)||1;
+  const driveH = M/mph;
+  const fuelStops = Math.max(0, Math.ceil(M/(Number(S.p.fuelEvery)||9999))-1);
+  const restStops = Math.max(0, Math.ceil(driveH/(Number(S.p.restEvery)||999))-1-fuelStops);
+  const stopH = (fuelStops*(Number(S.p.fuelMin)||0) + restStops*(Number(S.p.restMin)||0))/60;
+  const tunedEta = new Date(start.getTime() + (driveH+stopH)*3600e3);
+
+  const rt = Number(S.rate)>0 ? Number(S.rate) : 50;
+  const quickH = M/rt;
+  const quickEta = new Date(start.getTime() + quickH*3600e3);
+
+  const eta = S.mode==="quick" ? quickEta : tunedEta;
+  $("etaClock").textContent = clockOf(eta, showTz);
+  $("etaDay").textContent = dayOf(eta, showTz);
+
+  if(S.destTz && S.destTz !== S.originTz){
+    show($("etaYours"), true);
+    $("etaYours").textContent = clockOf(eta, S.originTz)+" "+tzTag(S.originTz)+" · your clock";
+  }
+
+  if(S.mode==="quick"){
+    const diffH = (tunedEta-quickEta)/3600e3;
+    show($("quickNote"), true);
+    $("quickNote").innerHTML = M+" mi ÷ "+rt+" = <span style='color:var(--ink)'>"+hm(quickH)+
+      "</span> all-in<br>Tuned model says "+clockOf(tunedEta,showTz)+" ("+hm(diffH)+" "+
+      (diffH<=0 ? "ahead of" : "behind")+" dispatch)";
+  } else {
+    const legs = fuelStops+restStops+1;
+    let html="";
+    for(let i=0;i<legs;i++){
+      html += "<i class='d' style='flex:"+(driveH/legs)+"'></i>";
+      if(i<legs-1) html += "<i class='s' style='flex:"+(stopH/(legs-1))+"'></i>";
+    }
+    $("strip").innerHTML = html;
+    show($("strip"), true); show($("legend"), true);
+    $("legend").innerHTML = "<span>ROLLING "+hm(driveH)+"</span><span>STOPPED "+hm(stopH)+
+      "</span><span>÷"+rt+" SAYS "+clockOf(quickEta,showTz)+"</span>";
+    $("runNote").innerHTML = S.p.mph+" mph cruise · fuel/swap every "+S.p.fuelEvery+" mi for "+
+      S.p.fuelMin+" min · stretch every "+S.p.restEvery+" h for "+S.p.restMin+" min<br>This run: "+
+      fuelStops+" fuel/swap stop"+(fuelStops===1?"":"s")+", "+restStops+" short stop"+
+      (restStops===1?"":"s");
+  }
+
+  const apptVal = $("appt").value;
+  if(apptVal){
+    const apptDate = fromWall(apptVal, showTz);
+    if(apptDate){
+      const cush = (apptDate-eta)/3600e3;
+      show($("cushion"), true);
+      $("cushion").className = "cushion " + (cush>=0 ? "ok" : "bad");
+      $("cushion").textContent = cush>=0 ? hm(cush)+" of cushion" : "Late by "+hm(cush);
+    }
+  }
+}
+
+/* boot */
+$("depart").value = toWall(new Date(), S.originTz);
+syncTune();
+setMode(S.mode);
+
+if("serviceWorker" in navigator){
+  window.addEventListener("load", ()=> navigator.serviceWorker.register("./sw.js").catch(()=>{}));
+}
+</script>
+</body>
+</html>
