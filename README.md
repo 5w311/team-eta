@@ -11,7 +11,7 @@ back, and hand a real alarm to your phone's Calendar.
 Resolves timezones from a town name. Day and night modes. **Runs 100% offline** — no server,
 no API, no signal required.
 
-**Current version: v2.1.5**
+**Current version: v2.1.6**
 
 ## Files
 
@@ -49,6 +49,11 @@ worker cached it on first load.
   keeps rolling through driver swaps. The 11/14 and the 70-hour cycle are still on you.
 
 ## Version history
+
+### v2.1.6
+
+- Reworded the ETA tab footer to "Assumes nonstop team running. Doesn't track HOS — check
+  your clocks."
 
 ### v2.1.5
 
