@@ -11,7 +11,7 @@ back, and hand a real alarm to your phone's Calendar.
 Resolves timezones from a town name. Day and night modes. **Runs 100% offline** — no server,
 no API, no signal required.
 
-**Current version: v2.1.8**
+**Current version: v2.1.9**
 
 ## Files
 
@@ -49,6 +49,11 @@ worker cached it on first load.
   keeps rolling through driver swaps. The 11/14 and the 70-hour cycle are still on you.
 
 ## Version history
+
+### v2.1.9
+
+- Centered the amber "It has to be 34 consecutive hours off duty…" warning on the 34 Reset
+  tab, to match the now-centered footers and calendar note.
 
 ### v2.1.8
 
