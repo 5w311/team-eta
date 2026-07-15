@@ -11,7 +11,7 @@ back, and hand a real alarm to your phone's Calendar.
 Resolves timezones from a town name. Day and night modes. **Runs 100% offline** — no server,
 no API, no signal required.
 
-**Current version: v2.2**
+**Current version: v2.2.1**
 
 ## Files
 
@@ -49,6 +49,11 @@ worker cached it on first load.
   keeps rolling through driver swaps. The 11/14 and the 70-hour cycle are still on you.
 
 ## Version history
+
+### v2.2.1
+
+- Added a small colour key under the run strip (DOT / Fuel / Swap) so the notch colours are
+  labelled, and recoloured the DOT notch green so it no longer reads like the brown fuel notch.
 
 ### v2.2
 
