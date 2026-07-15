@@ -11,7 +11,7 @@ back, and hand a real alarm to your phone's Calendar.
 Resolves timezones from a town name. Day and night modes. **Runs 100% offline** — no server,
 no API, no signal required.
 
-**Current version: v2.1.1**
+**Current version: v2.1.2**
 
 ## Files
 
@@ -49,6 +49,11 @@ worker cached it on first load.
   keeps rolling through driver swaps. The 11/14 and the 70-hour cycle are still on you.
 
 ## Version history
+
+### v2.1.2
+
+- The ETA tab now opens with miles empty instead of a pre-filled 1200, so first load
+  shows the clean "Enter miles and a departure time." state — identical to post-CLEAR.
 
 ### v2.1.1
 
