@@ -189,6 +189,8 @@
     user-select:all;-webkit-user-select:all}
   .foot{font-family:var(--mono);font-size:10px;color:var(--mute);line-height:1.8;margin-top:14px;
     letter-spacing:.03em}
+  .foot p{margin:0}
+  .foot p + p{margin-top:.9em}   /* subtle one-line separation between stacked lines */
   .hide{display:none !important}
 </style>
 </head>
@@ -303,11 +305,14 @@
           <div><input id="swapA" type="time"></div>
           <div><input id="swapB" type="time"></div>
         </div>
-        <select id="swapTz" style="margin-top:10px"></select>
+        <select id="swapTz" style="margin-top:10px;text-align:center"></select>
       </div>
     </div>
 
-    <div class="foot">Assumes nonstop team running. Doesn't track HOS — check your clocks.</div>
+    <div class="foot" style="text-align:center">
+      <p>Assumes nonstop team running.</p>
+      <p>Doesn't track HOS — check your clocks.</p>
+    </div>
   </div>
 
   <!-- ========================== 34 RESET ========================== -->
@@ -345,9 +350,10 @@
 
     <div class="card">
       <button class="primary" id="icsBtn" disabled>ADD ALARM TO CALENDAR</button>
-      <div class="foot" style="margin-top:10px">
-        No web app can wake your phone on its own. This hands a real alarm to your Calendar,
-        which fires whether MilesPost is open, closed, or deleted.
+      <div class="foot" style="margin-top:10px;text-align:center">
+        <p>No web app can wake your phone on its own.</p>
+        <p>This hands a real alarm to your Calendar, which fires whether MilesPost is
+          open, closed, or deleted.</p>
       </div>
       <div class="warn hide" id="frameWarn">
         <b>You're viewing this inside an app preview.</b> Previews block downloads, so the
@@ -367,11 +373,13 @@
       from zero. If that happens, hit restart above.
     </div>
 
-    <div class="foot">34-hour restart under 395.3(c). Counts 34 real elapsed hours, so it stays
-      right across a DST change.</div>
+    <div class="foot" style="text-align:center">
+      <p>34-hour restart under 395.3(c).</p>
+      <p style="font-size:9px">Counts 34 real elapsed hours, so it stays right across a DST change.</p>
+    </div>
   </div>
 
-  <div class="foot" style="text-align:center;opacity:.55">MilesPost v2.1.6</div>
+  <div class="foot" style="text-align:center;opacity:.55">MilesPost v2.1.7</div>
 </div>
 
 <script type="module">

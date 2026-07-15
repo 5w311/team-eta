@@ -1,6 +1,6 @@
 // Build marker, NOT the app version. Bump it on every single deploy, or installed
 // phones will decide they're already current and quietly ignore the new build.
-const CACHE = "milespost-v2.1.6";
+const CACHE = "milespost-v2.1.7";
 const ASSETS = [
   "./",
   "./index.html",
