@@ -11,7 +11,7 @@ back, and hand a real alarm to your phone's Calendar.
 Resolves timezones from a town name. Day and night modes. **Runs 100% offline** — no server,
 no API, no signal required.
 
-**Current version: v2.1.2**
+**Current version: v2.1.3**
 
 ## Files
 
@@ -49,6 +49,11 @@ worker cached it on first load.
   keeps rolling through driver swaps. The 11/14 and the 70-hour cycle are still on you.
 
 ## Version history
+
+### v2.1.3
+
+- Simplified the no-destination arrival label to "Arrival · set a destination below",
+  dropping the confusing "your clock" phrasing and the timezone tag in that state.
 
 ### v2.1.2
 
