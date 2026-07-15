@@ -64,6 +64,11 @@ try {
   if (!(await page.isDisabled("#etaClear")))
     fail("CLEAR should start inert on first load");
 
+  // No-destination arrival label is the simplified form — no "your clock", no tz tag.
+  const label = (await page.textContent("#etaLabel"))?.trim();
+  if (label !== "Arrival · set a destination below")
+    fail(`unexpected no-destination label: ${JSON.stringify(label)}`);
+
   // Drive the ETA tool and expect a real arrival clock, not the placeholder.
   await page.fill("#miles", "1300");
   await page.fill("#depart", "2026-06-15T08:00");
