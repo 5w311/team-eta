@@ -11,7 +11,7 @@ back, and hand a real alarm to your phone's Calendar.
 Resolves timezones from a town name. Day and night modes. **Runs 100% offline** — no server,
 no API, no signal required.
 
-**Current version: v2.1.7**
+**Current version: v2.1.8**
 
 ## Files
 
@@ -49,6 +49,12 @@ worker cached it on first load.
   keeps rolling through driver swaps. The 11/14 and the 70-hour cycle are still on you.
 
 ## Version history
+
+### v2.1.8
+
+- Follow-up to v2.1.7 centering: the swap-timezone select now also centers on Safari/WebKit
+  (which ignores `text-align` on a `<select>` — `text-align-last` fixes it), and the stacked
+  footer/note lines are centered on the paragraph itself rather than by inheritance.
 
 ### v2.1.7
 

@@ -189,8 +189,10 @@
     user-select:all;-webkit-user-select:all}
   .foot{font-family:var(--mono);font-size:10px;color:var(--mute);line-height:1.8;margin-top:14px;
     letter-spacing:.03em}
-  .foot p{margin:0}
-  .foot p + p{margin-top:.9em}   /* subtle one-line separation between stacked lines */
+  .foot p{margin:0;text-align:center}   /* center on the text element itself, not via inherit */
+  .foot p + p{margin-top:.9em}          /* subtle one-line separation between stacked lines */
+  /* Safari ignores text-align on a <select> face; text-align-last centers it there. */
+  select.centered{text-align:center;text-align-last:center}
   .hide{display:none !important}
 </style>
 </head>
@@ -305,7 +307,7 @@
           <div><input id="swapA" type="time"></div>
           <div><input id="swapB" type="time"></div>
         </div>
-        <select id="swapTz" style="margin-top:10px;text-align:center"></select>
+        <select id="swapTz" class="centered" style="margin-top:10px"></select>
       </div>
     </div>
 
@@ -379,7 +381,7 @@
     </div>
   </div>
 
-  <div class="foot" style="text-align:center;opacity:.55">MilesPost v2.1.7</div>
+  <div class="foot" style="text-align:center;opacity:.55">MilesPost v2.1.8</div>
 </div>
 
 <script type="module">
