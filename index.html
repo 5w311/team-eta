@@ -327,6 +327,7 @@
         <label for="shut">Shut down</label>
         <div class="row">
           <input id="shut" type="datetime-local">
+          <button class="go" id="rsSetShut">SET</button>
           <button class="ghost" id="rsNow">NOW</button>
         </div>
         <div class="meta">
@@ -371,7 +372,7 @@
       right across a DST change.</div>
   </div>
 
-  <div class="foot" style="text-align:center;opacity:.55">MilesPost v2.1.4</div>
+  <div class="foot" style="text-align:center;opacity:.55">MilesPost v2.1.5</div>
 </div>
 
 <script type="module">
@@ -639,19 +640,29 @@ for(let i=0;i<RESET_HOURS;i++) $("bars").appendChild(document.createElement("i")
 show($("frameWarn"), inFrame);
 
 /* The field is a wall clock in R.tz — the local time where you shut down. Changing the
-   zone therefore re-reads that same clock face in the new zone. */
+   zone re-reads that same clock face in the new zone, but only for a reset that's already
+   committed; while you're still choosing, it just updates the zone the SET will commit in. */
 const applyRsTz = (tz,name)=>{
   R.tz=tz; R.tzName=name;
-  const d = fromWall($("shut").value, R.tz);
-  if(d) R.shutMs = d.getTime();
+  if(R.shutMs != null){
+    const d = fromWall($("shut").value, R.tz);
+    if(d) R.shutMs = d.getTime();
+  }
   $("rsIn").value=""; show($("rsEdit"),false); $("rsToggle").textContent="change";
   show($("rsErr"),false); show($("rsPick"),false);
   saveReset(); renderReset();
 };
-$("shut").addEventListener("input", e=>{
-  const d = fromWall(e.target.value, R.tz);
-  if(d){ R.shutMs = d.getTime(); saveReset(); renderReset(); }
-});
+/* A reset starts only on an explicit commit — SET (a chosen date) or NOW. The native date
+   picker opens defaulted to "now" and fires input/change on open and on every scroll, so
+   committing on those events would start the reset before the driver picked anything and
+   hide the field mid-choice. Requiring SET keeps the picker usable. */
+const rsSetShut = ()=>{
+  const d = fromWall($("shut").value, R.tz);
+  if(!d) return;                          // nothing chosen yet — leave the input up
+  R.shutMs = d.getTime();
+  saveReset(); renderReset();
+};
+$("rsSetShut").onclick = rsSetShut;
 const rsSetNow = ()=>{
   R.shutMs = Date.now();
   $("shut").value = toWall(new Date(R.shutMs), R.tz);

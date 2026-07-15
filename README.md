@@ -11,7 +11,7 @@ back, and hand a real alarm to your phone's Calendar.
 Resolves timezones from a town name. Day and night modes. **Runs 100% offline** — no server,
 no API, no signal required.
 
-**Current version: v2.1.4**
+**Current version: v2.1.5**
 
 ## Files
 
@@ -49,6 +49,15 @@ worker cached it on first load.
   keeps rolling through driver swaps. The 11/14 and the 70-hour cycle are still on you.
 
 ## Version history
+
+### v2.1.5
+
+- **Fix: the 34 Reset date picker no longer locks you out.** Tapping the shutdown date box
+  used to hide the input the instant the picker opened — the native picker's default "now"
+  value fired the "reset started" rule before you'd chosen anything, so only the NOW button
+  worked. A reset now starts only on an explicit commit: **NOW**, or a new **SET** button
+  next to the field. Opening or scrolling the picker never starts the reset, so the field
+  stays up the whole time you're choosing a date.
 
 ### v2.1.4
 

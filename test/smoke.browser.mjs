@@ -108,20 +108,47 @@ try {
   if (!(await page.isDisabled("#etaClear")))
     fail("CLEAR should be inert again once the load is empty");
 
-  // 34 Reset tab: the shutdown input collapses while a reset runs and returns on CLEAR.
+  // 34 Reset tab: choosing a date must NOT start the reset (picker-lockout regression).
   await page.click("#tabReset");
   await page.waitForTimeout(100);
   if (!(await page.isVisible("#rsInputCard")))
     fail("shutdown input should be visible in the empty reset state");
-  await page.click("#rsNow");                    // start a reset from now
+
+  // A future shutdown (planned ahead), so committing it starts a live reset rather than
+  // tripping the auto-clear that a long-past date would.
+  const soon = new Date(Date.now() + 2 * 24 * 3600e3);
+  const pad = n => String(n).padStart(2, "0");
+  const wall = `${soon.getFullYear()}-${pad(soon.getMonth() + 1)}-${pad(soon.getDate())}T08:00`;
+
+  // Setting the field value fires input/change — as the native picker does on open/scroll.
+  // The input must stay up: a reset starts only on an explicit commit.
+  await page.fill("#shut", wall);
+  await page.dispatchEvent("#shut", "change");
+  await page.waitForTimeout(100);
+  if (!(await page.isVisible("#rsInputCard")))
+    fail("choosing a date must not start the reset or hide the input");
+
+  // Commit the chosen date with SET — now the reset starts and the input collapses.
+  await page.click("#rsSetShut");
   await page.waitForTimeout(100);
   if (await page.isVisible("#rsInputCard"))
-    fail("shutdown input should collapse while a reset is running");
+    fail("shutdown input should collapse once a chosen date is committed with SET");
+  if (((await page.textContent("#rsClock"))?.trim()) === "--:--")
+    fail("committing a shutdown should show the computed legal time");
   await page.click("#rsClear");                  // arm
   await page.click("#rsClear");                  // confirm CLEAR TIMER
   await page.waitForTimeout(100);
   if (!(await page.isVisible("#rsInputCard")))
     fail("shutdown input should return after CLEAR TIMER");
+
+  // NOW is unchanged: it starts a reset from now and collapses the input.
+  await page.click("#rsNow");
+  await page.waitForTimeout(100);
+  if (await page.isVisible("#rsInputCard"))
+    fail("NOW should start a reset and hide the input");
+  await page.click("#rsClear");
+  await page.click("#rsClear");
+  await page.waitForTimeout(100);
 
   // Auto-clear edge case: a reset that completed over 10 min ago must open in the clean
   // empty state (never a stale "Complete" screen or a negative countdown). Seed a stale
@@ -142,7 +169,7 @@ try {
   if (errors.length) fail("page errors: " + JSON.stringify(errors, null, 2));
 
   if (!process.exitCode)
-    console.log(`SMOKE OK: arrival ${etaClock}, shift "${shiftText}" (Tuned only), CLEAR empties the load, reset input collapses while running, module loaded, no page errors`);
+    console.log(`SMOKE OK: arrival ${etaClock}, shift "${shiftText}" (Tuned only), CLEAR empties the load, reset picker stays up until SET/NOW, module loaded, no page errors`);
 } finally {
   await browser.close();
   server.close();
