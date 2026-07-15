@@ -65,9 +65,25 @@ try {
   if (!/^\d{2}:\d{2}$/.test(etaClock || "") || etaClock === "--:--")
     fail(`expected a computed arrival clock, got ${JSON.stringify(etaClock)}`);
 
+  // The "who's driving on arrival" line: hidden on Estimated (default), shown on Tuned.
+  if (await page.isVisible("#etaShift"))
+    fail("shift line should be hidden on the Estimated sub-tab");
+  await page.click("#tabTuned");
+  await page.waitForTimeout(100);
+  if (!(await page.isVisible("#etaShift")))
+    fail("shift line should be visible on the Tuned sub-tab");
+  const shiftText = (await page.textContent("#etaShift"))?.trim();
+  if (!/^(day|night) shift driving$/.test(shiftText || ""))
+    fail(`expected a shift readout, got ${JSON.stringify(shiftText)}`);
+  await page.click("#tabQuick");
+  await page.waitForTimeout(100);
+  if (await page.isVisible("#etaShift"))
+    fail("shift line should hide again when switching back to Estimated");
+
   if (errors.length) fail("page errors: " + JSON.stringify(errors, null, 2));
 
-  if (!process.exitCode) console.log(`SMOKE OK: arrival ${etaClock}, module loaded, no page errors`);
+  if (!process.exitCode)
+    console.log(`SMOKE OK: arrival ${etaClock}, shift "${shiftText}" (Tuned only), module loaded, no page errors`);
 } finally {
   await browser.close();
   server.close();
