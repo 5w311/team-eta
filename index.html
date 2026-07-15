@@ -148,7 +148,7 @@
   .strip i.d{background:var(--amber)}
   .strip i.swap{background:var(--reefer);min-width:2px}
   .strip i.fuel{background:var(--amber-dim);min-width:2px}
-  .strip i.rest{background:var(--rest);min-width:2px}
+  .strip i.dot{background:var(--rest);min-width:2px}
   .legend{display:flex;justify-content:space-between;font-family:var(--mono);font-size:10px;
     color:var(--mute);margin-top:6px;letter-spacing:.08em}
 
@@ -298,8 +298,8 @@
         <div><div class="lbl">Fuel every</div><div class="fieldwrap"><input id="fuelEvery" type="number" inputmode="decimal"><span class="suffix">mi</span></div></div>
         <div><div class="lbl">Fuel stop</div><div class="fieldwrap"><input id="fuelMin" type="number" inputmode="decimal"><span class="suffix">min</span></div></div>
         <div><div class="lbl">Swap takes</div><div class="fieldwrap"><input id="swapMin" type="number" inputmode="decimal"><span class="suffix">min</span></div></div>
-        <div><div class="lbl">Stretch every</div><div class="fieldwrap"><input id="restEvery" type="number" inputmode="decimal"><span class="suffix">hr</span></div></div>
-        <div><div class="lbl">Stretch stop</div><div class="fieldwrap"><input id="restMin" type="number" inputmode="decimal"><span class="suffix">min</span></div></div>
+        <div><div class="lbl">DOT break</div><div class="fieldwrap"><input id="dotMin" type="number" inputmode="decimal" min="30" step="5"><span class="suffix">min</span></div></div>
+        <div><div class="lbl">DOT after</div><div class="fieldwrap"><input id="dotAt" type="number" inputmode="decimal" min="1" step="1"><span class="suffix">hr</span></div></div>
       </div>
       <div class="hide" id="swapBox">
         <div class="lbl" style="margin-top:16px">Swap schedule — fixed clock, wherever you are</div>
@@ -381,7 +381,7 @@
     </div>
   </div>
 
-  <div class="foot" style="text-align:center;opacity:.55">MilesPost v2.1.9</div>
+  <div class="foot" style="text-align:center;opacity:.55">MilesPost v2.2</div>
 </div>
 
 <script type="module">
@@ -454,7 +454,7 @@ Object.keys(PRESETS).forEach(k=>{
   b.onclick=()=>{ E.preset=k; E.p={...PRESETS[k]}; syncTune(); saveEta(); renderEta(); };
   $("presets").appendChild(b);
 });
-const TUNE_KEYS = ["mph","fuelEvery","fuelMin","swapMin","restEvery","restMin"];
+const TUNE_KEYS = ["mph","fuelEvery","fuelMin","swapMin","dotMin","dotAt"];
 const syncTune = () => {
   TUNE_KEYS.forEach(k=>{ $(k).value = E.p[k]; });
   [...$("presets").children].forEach(b =>
@@ -465,6 +465,10 @@ TUNE_KEYS.forEach(k=>{
     E.p[k] = e.target.value==="" ? "" : Number(e.target.value);
     E.preset="Custom"; syncTune(); saveEta(); renderEta();
   });
+});
+// The DOT break is the federal 30 — snap any sub-30 entry up to 30 once the field is left.
+$("dotMin").addEventListener("change", ()=>{
+  if(E.p.dotMin !== "" && Number(E.p.dotMin) < 30){ E.p.dotMin = 30; syncTune(); saveEta(); renderEta(); }
 });
 const syncSwap = () => {
   $("swapA").value = E.swap.times[0];
@@ -563,7 +567,7 @@ function renderEta(){
     return;
   }
 
-  const { driveH, fuelStops, swaps, restStops, stopH, totalH, tunedEta, quickH, quickEta } =
+  const { driveH, fuelStops, swaps, dots, dotMin, stopH, totalH, tunedEta, quickH, quickEta } =
     solveEta({ miles:M, p:E.p, swap:E.swap, startMs:start.getTime() });
   const eta = E.mode==="quick" ? quickEta : tunedEta;
 
@@ -588,14 +592,13 @@ function renderEta(){
     $("etaShift").textContent =
       shiftAtArrival(eta, E.swap) === "day" ? "day shift driving" : "night shift driving";
 
-    // Lay every stop on the timeline: swaps by clock, fuel by odometer, stretches evenly.
+    // Lay every stop on the timeline: swaps and DOT breaks by clock, fuel by odometer.
     const stops = [];
     swaps.forEach(t => stops.push({k:"swap", min:Number(E.p.swapMin)||0,
       at:(t-start)/3600e3/totalH}));
     for(let i=1;i<=fuelStops;i++)
       stops.push({k:"fuel", min:Number(E.p.fuelMin)||0, at:i*Number(E.p.fuelEvery)/M});
-    for(let i=1;i<=restStops;i++)
-      stops.push({k:"rest", min:Number(E.p.restMin)||0, at:i/(restStops+1)});
+    dots.forEach(t => stops.push({k:"dot", min:dotMin, at:(t-start)/3600e3/totalH}));
     stops.sort((a,b)=>a.at-b.at);
 
     let html="";
@@ -609,11 +612,11 @@ function renderEta(){
       "</span><span>"+(M/totalH).toFixed(1)+" MPH AVG</span>";
     $("runNote").innerHTML =
       E.p.mph+" mph cruise · fuel every "+E.p.fuelEvery+" mi ("+E.p.fuelMin+" min) · swap "+
-      E.swap.times.join(" / ")+" "+tzTag(E.swap.tz)+" ("+E.p.swapMin+" min) · stretch every "+
-      E.p.restEvery+" h ("+E.p.restMin+" min)"+
+      E.swap.times.join(" / ")+" "+tzTag(E.swap.tz)+" ("+E.p.swapMin+" min) · DOT "+dotMin+
+      " min @ "+E.p.dotAt+" h into shift"+
       "<br>This run: "+swaps.length+" swap"+(swaps.length===1?"":"s")+", "+
       fuelStops+" fuel stop"+(fuelStops===1?"":"s")+", "+
-      restStops+" short stop"+(restStops===1?"":"s");
+      dots.length+" DOT break"+(dots.length===1?"":"s");
   }
 
   const apptVal = $("appt").value;
