@@ -55,6 +55,15 @@ try {
   });
   if (!moduleOk) fail("./lib/logic.js did not load as a module in the page");
 
+  // Opening state must be the clean empty state (no phantom 1200-mile calc): miles empty,
+  // placeholder readout, CLEAR inert — identical to the post-CLEAR state asserted below.
+  if ((await page.inputValue("#miles")) !== "")
+    fail("miles should start empty on first load");
+  if (((await page.textContent("#etaClock"))?.trim()) !== "--:--")
+    fail("readout should start at the placeholder on first load");
+  if (!(await page.isDisabled("#etaClear")))
+    fail("CLEAR should start inert on first load");
+
   // Drive the ETA tool and expect a real arrival clock, not the placeholder.
   await page.fill("#miles", "1300");
   await page.fill("#depart", "2026-06-15T08:00");
