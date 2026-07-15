@@ -280,6 +280,8 @@
         <label for="appt" id="apptLbl">Appointment (optional)</label>
         <input id="appt" type="datetime-local">
       </div>
+
+      <button class="muted" id="etaClear">CLEAR</button>
     </div>
 
     <div class="card hide" id="panelTuned">
@@ -369,7 +371,7 @@
       right across a DST change.</div>
   </div>
 
-  <div class="foot" style="text-align:center;opacity:.55">MilesPost v2.1</div>
+  <div class="foot" style="text-align:center;opacity:.55">MilesPost v2.1.1</div>
 </div>
 
 <script type="module">
@@ -537,6 +539,12 @@ function renderEta(){
 
   const M = Number($("miles").value) || 0;
   const start = fromWall($("depart").value, E.originTz);
+
+  // Inert until the load has something in it — nothing to clear otherwise.
+  const hasLoad = M > 0 || !!E.destTz || !!$("appt").value;
+  $("etaClear").disabled = !hasLoad;
+  if(!hasLoad) etaClearGuard.disarm();
+
   ["etaYours","etaShift","quickNote","strip","legend","cushion"].forEach(id=>show($(id),false));
   if(!(M > 0 && start)){
     $("etaClock").textContent = "--:--";
@@ -698,6 +706,20 @@ function twoTap(btn, idle, armedLabel, action){
 const brokeGuard = twoTap($("rsBroke"), "BROKE THE 34 — RESTART FROM NOW",
   "TAP AGAIN TO RESTART FROM NOW", rsRestart);
 const clearGuard = twoTap($("rsClear"), "CLEAR TIMER", "TAP AGAIN TO CLEAR", rsClearAll);
+
+// Clears the load, not the truck: miles, destination, and appointment go back to unset,
+// and departure resets to now — same as first launch. Presets, tuning, the swap schedule,
+// origin timezone, and theme are standing setup and are left untouched.
+const etaClearAll = ()=>{
+  $("miles").value = "";
+  E.destTz = null; E.destName = "";
+  $("destIn").value = "";
+  show($("destMeta"), false); show($("destErr"), false); show($("destPick"), false);
+  $("appt").value = "";
+  $("depart").value = toWall(new Date(), E.originTz);
+  renderEta();
+};
+const etaClearGuard = twoTap($("etaClear"), "CLEAR", "TAP AGAIN TO CLEAR", etaClearAll);
 
 $("icsBtn").onclick = ()=>{
   if(!R.shutMs) return;
