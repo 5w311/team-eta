@@ -11,7 +11,7 @@ back, and hand a real alarm to your phone's Calendar.
 Resolves timezones from a town name. Day and night modes. **Runs 100% offline** — no server,
 no API, no signal required.
 
-**Current version: v2.1.9**
+**Current version: v2.2**
 
 ## Files
 
@@ -49,6 +49,20 @@ worker cached it on first load.
   keeps rolling through driver swaps. The 11/14 and the 70-hour cycle are still on you.
 
 ## Version history
+
+### v2.2
+
+- **DOT break replaces the "stretch" stop in the Tuned Model.** Instead of a recurring
+  every-N-hours stretch, the model now takes the federal 30-minute break **once per driving
+  shift**, a set number of hours into that shift. A run gets one DOT break per shift it drives
+  through and reaches the mark of — a run that ends before the mark takes none, mirroring how
+  swaps are counted. DOT duration is editable but never drops below 30 min; DOT timing (hours
+  into shift) is editable per preset (Conservative 4h, Realistic 5h, Push 6h).
+- **Stop durations retuned:** swap is now a flat **30 min** on every preset; fuel is
+  **25 / 20 / 15 min** (Conservative / Realistic / Push). Cruise speeds and fuel intervals are
+  unchanged.
+- Bumping the preset version means **saved custom tuning resets to the new defaults** — your
+  **swap schedule and theme are preserved**.
 
 ### v2.1.9
 
