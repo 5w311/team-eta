@@ -148,9 +148,18 @@
   .strip i.d{background:var(--amber)}
   .strip i.swap{background:var(--reefer);min-width:2px}
   .strip i.fuel{background:var(--amber-dim);min-width:2px}
-  .strip i.dot{background:var(--rest);min-width:2px}
+  .strip i.dot{background:var(--good);min-width:2px}
   .legend{display:flex;justify-content:space-between;font-family:var(--mono);font-size:10px;
     color:var(--mute);margin-top:6px;letter-spacing:.08em}
+  /* Colour key for the strip notches — swatches pull the same vars as the strip,
+     so they track both themes automatically. */
+  .stripkey{display:flex;justify-content:center;gap:14px;font-family:var(--mono);font-size:10px;
+    color:var(--mute);margin-top:8px;letter-spacing:.08em}
+  .stripkey span{display:inline-flex;align-items:center;gap:5px}
+  .stripkey i{width:8px;height:8px;border-radius:2px;flex:none}
+  .stripkey i.dot{background:var(--good)}
+  .stripkey i.fuel{background:var(--amber-dim)}
+  .stripkey i.swap{background:var(--reefer)}
 
   /* 34 reset: one bar per hour */
   .bars{display:flex;gap:2px;height:22px;margin-top:14px}
@@ -237,6 +246,11 @@
       <div class="sub hide" id="etaShift"></div>
       <div class="note hide" id="quickNote"></div>
       <div class="strip hide" id="strip"></div>
+      <div class="stripkey hide" id="stripKey">
+        <span><i class="dot"></i>DOT</span>
+        <span><i class="fuel"></i>Fuel</span>
+        <span><i class="swap"></i>Swap</span>
+      </div>
       <div class="legend hide" id="legend"></div>
       <div class="cushion hide" id="cushion"></div>
     </div>
@@ -381,7 +395,7 @@
     </div>
   </div>
 
-  <div class="foot" style="text-align:center;opacity:.55">MilesPost v2.2</div>
+  <div class="foot" style="text-align:center;opacity:.55">MilesPost v2.2.1</div>
 </div>
 
 <script type="module">
@@ -560,7 +574,7 @@ function renderEta(){
   $("etaClear").disabled = !hasLoad;
   if(!hasLoad) etaClearGuard.disarm();
 
-  ["etaYours","etaShift","quickNote","strip","legend","cushion"].forEach(id=>show($(id),false));
+  ["etaYours","etaShift","quickNote","strip","stripKey","legend","cushion"].forEach(id=>show($(id),false));
   if(!(M > 0 && start)){
     $("etaClock").textContent = "--:--";
     $("etaDay").textContent = "Enter miles and a departure time.";
@@ -607,7 +621,7 @@ function renderEta(){
       if(i<stops.length) html += "<i class='"+stops[i].k+"' style='flex:"+(stops[i].min/60)+"'></i>";
     }
     $("strip").innerHTML = html;
-    show($("strip"), true); show($("legend"), true);
+    show($("strip"), true); show($("stripKey"), true); show($("legend"), true);
     $("legend").innerHTML = "<span>ROLLING "+hm(driveH)+"</span><span>STOPPED "+hm(stopH)+
       "</span><span>"+(M/totalH).toFixed(1)+" MPH AVG</span>";
     $("runNote").innerHTML =
