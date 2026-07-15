@@ -80,10 +80,24 @@ try {
   if (await page.isVisible("#etaShift"))
     fail("shift line should hide again when switching back to Estimated");
 
+  // CLEAR button: enabled once there's a load, two-tap arm/confirm empties the load
+  // and returns the readout to its placeholder.
+  if (await page.isDisabled("#etaClear"))
+    fail("CLEAR should be enabled while a load is entered");
+  await page.click("#etaClear");                 // arm
+  await page.click("#etaClear");                 // confirm
+  await page.waitForTimeout(100);
+  const milesAfter = await page.inputValue("#miles");
+  const clockAfter = (await page.textContent("#etaClock"))?.trim();
+  if (milesAfter !== "") fail(`CLEAR should empty miles, got ${JSON.stringify(milesAfter)}`);
+  if (clockAfter !== "--:--") fail(`CLEAR should reset the readout, got ${JSON.stringify(clockAfter)}`);
+  if (!(await page.isDisabled("#etaClear")))
+    fail("CLEAR should be inert again once the load is empty");
+
   if (errors.length) fail("page errors: " + JSON.stringify(errors, null, 2));
 
   if (!process.exitCode)
-    console.log(`SMOKE OK: arrival ${etaClock}, shift "${shiftText}" (Tuned only), module loaded, no page errors`);
+    console.log(`SMOKE OK: arrival ${etaClock}, shift "${shiftText}" (Tuned only), CLEAR empties the load, module loaded, no page errors`);
 } finally {
   await browser.close();
   server.close();

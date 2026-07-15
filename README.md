@@ -11,7 +11,7 @@ back, and hand a real alarm to your phone's Calendar.
 Resolves timezones from a town name. Day and night modes. **Runs 100% offline** — no server,
 no API, no signal required.
 
-**Current version: v2.1**
+**Current version: v2.1.1**
 
 ## Files
 
@@ -49,6 +49,13 @@ worker cached it on first load.
   keeps rolling through driver swaps. The 11/14 and the 70-hour cycle are still on you.
 
 ## Version history
+
+### v2.1.1
+
+- **CLEAR button on the ETA tab**, mirroring the 34 Reset tab's. Clears the *load* —
+  miles, destination, and appointment — and resets departure to now; it leaves the truck
+  setup (presets, tuning, swap schedule, origin timezone, theme) alone. Same two-tap
+  arm/confirm guard as the reset tab, and inert until there's a load to clear.
 
 ### v2.1
 
