@@ -11,7 +11,7 @@ back, and hand a real alarm to your phone's Calendar.
 Resolves timezones from a town name. Day and night modes. **Runs 100% offline** — no server,
 no API, no signal required.
 
-**Current version: v2.1.3**
+**Current version: v2.1.4**
 
 ## Files
 
@@ -49,6 +49,16 @@ worker cached it on first load.
   keeps rolling through driver swaps. The 11/14 and the 70-hour cycle are still on you.
 
 ## Version history
+
+### v2.1.4
+
+- **34 Reset tab tidied while a reset runs.** Once a shutdown time is set, the input card
+  collapses so only the countdown shows; it returns only when you CLEAR TIMER. (BROKE THE 34
+  restarts to now, so it stays running and the input stays hidden.)
+- **Auto-clear 10 minutes after completion.** A finished 34 shows "Complete … clearing in
+  M:SS" and clears itself to the empty state at zero. The check keys off the completion
+  timestamp (`autoClearElapsed` in `lib/logic.js`, with tests), so reopening the app past the
+  window lands on the clean empty state — never a negative countdown.
 
 ### v2.1.3
 

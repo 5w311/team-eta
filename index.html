@@ -322,7 +322,7 @@
       <div class="scale hide" id="rsScale"><span>SHUT DOWN</span><span>17H</span><span>34H</span></div>
     </div>
 
-    <div class="card">
+    <div class="card" id="rsInputCard">
       <div class="group">
         <label for="shut">Shut down</label>
         <div class="row">
@@ -371,13 +371,14 @@
       right across a DST change.</div>
   </div>
 
-  <div class="foot" style="text-align:center;opacity:.55">MilesPost v2.1.3</div>
+  <div class="foot" style="text-align:center;opacity:.55">MilesPost v2.1.4</div>
 </div>
 
 <script type="module">
 import {
   resolvePlace, ZONE_LIST, deviceTz, tzTag, fromWall, toWall, clockOf, dayOf, hm, hms,
-  RATE, PRESETS, PRESET_VERSION, SWAP_DEFAULT, solveEta, shiftAtArrival, RESET_HOURS, icsStamp, esc
+  RATE, PRESETS, PRESET_VERSION, SWAP_DEFAULT, solveEta, shiftAtArrival,
+  RESET_HOURS, AUTO_CLEAR_MS, autoClearElapsed, icsStamp, esc
 } from "./lib/logic.js";
 
 /* ======================= theme ======================= */
@@ -769,11 +770,18 @@ function renderReset(){
     $("rsClock").textContent = "--:--";
     $("rsDay").textContent = "Set the time you shut down.";
     ["rsCount","bars","rsScale","manual"].forEach(id=>show($(id), false));
+    show($("rsInputCard"), true);          // input returns only in the empty state
     $("icsBtn").disabled = true;
     $("rsBroke").disabled = true; brokeGuard.disarm();
     $("rsClear").disabled = true; clearGuard.disarm();
     return;
   }
+
+  // A completed 34 clears itself 10 minutes after it finishes. Keyed off the completion
+  // timestamp, so a reopen past the window lands straight in the empty state above.
+  if(autoClearElapsed(R.shutMs, Date.now())){ rsClearAll(); return; }
+
+  show($("rsInputCard"), false);           // a reset is set — collapse the input
   $("icsBtn").disabled = false;
   $("rsBroke").disabled = false;
   $("rsClear").disabled = false;
@@ -797,7 +805,10 @@ function renderReset(){
     $("rsCount").innerHTML = "Clock starts in <b>"+hms(R.shutMs-now)+"</b> · "+
       clockOf(shut,R.tz)+" "+dayOf(shut,R.tz);
   } else if(done){
-    $("rsCount").innerHTML = "<b>Complete.</b> Ran out "+hm(elapsedH-RESET_HOURS)+" ago.";
+    const secs = Math.max(0, Math.ceil((R.shutMs + RESET_HOURS*3600e3 + AUTO_CLEAR_MS - now)/1000));
+    const clr = Math.floor(secs/60)+":"+String(secs%60).padStart(2,"0");
+    $("rsCount").innerHTML = "<b>Complete.</b> Ran out "+hm(elapsedH-RESET_HOURS)+
+      " ago · clearing in "+clr;
   } else {
     $("rsCount").innerHTML = "<b>"+hms(legal.getTime()-now)+"</b> to go · "+
       hm(elapsedH)+" of "+RESET_HOURS+"h done";

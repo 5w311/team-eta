@@ -108,10 +108,41 @@ try {
   if (!(await page.isDisabled("#etaClear")))
     fail("CLEAR should be inert again once the load is empty");
 
+  // 34 Reset tab: the shutdown input collapses while a reset runs and returns on CLEAR.
+  await page.click("#tabReset");
+  await page.waitForTimeout(100);
+  if (!(await page.isVisible("#rsInputCard")))
+    fail("shutdown input should be visible in the empty reset state");
+  await page.click("#rsNow");                    // start a reset from now
+  await page.waitForTimeout(100);
+  if (await page.isVisible("#rsInputCard"))
+    fail("shutdown input should collapse while a reset is running");
+  await page.click("#rsClear");                  // arm
+  await page.click("#rsClear");                  // confirm CLEAR TIMER
+  await page.waitForTimeout(100);
+  if (!(await page.isVisible("#rsInputCard")))
+    fail("shutdown input should return after CLEAR TIMER");
+
+  // Auto-clear edge case: a reset that completed over 10 min ago must open in the clean
+  // empty state (never a stale "Complete" screen or a negative countdown). Seed a stale
+  // completed reset into storage, reload, and confirm the app clears it on open.
+  await page.evaluate(() => {
+    const shutMs = Date.now() - 35 * 3600e3;     // finished ~1h ago, past the 10-min window
+    localStorage.setItem("milespost.reset",
+      JSON.stringify({ shutMs, tz: "America/New_York", tzName: "Test" }));
+  });
+  await page.reload({ waitUntil: "networkidle" });
+  await page.click("#tabReset");
+  await page.waitForTimeout(100);
+  if (!(await page.isVisible("#rsInputCard")))
+    fail("a long-completed reset should auto-clear to the empty state on open");
+  if (((await page.textContent("#rsClock"))?.trim()) !== "--:--")
+    fail("auto-cleared reset should show the placeholder readout, not a stale time");
+
   if (errors.length) fail("page errors: " + JSON.stringify(errors, null, 2));
 
   if (!process.exitCode)
-    console.log(`SMOKE OK: arrival ${etaClock}, shift "${shiftText}" (Tuned only), CLEAR empties the load, module loaded, no page errors`);
+    console.log(`SMOKE OK: arrival ${etaClock}, shift "${shiftText}" (Tuned only), CLEAR empties the load, reset input collapses while running, module loaded, no page errors`);
 } finally {
   await browser.close();
   server.close();
