@@ -483,7 +483,8 @@ const geoPos = () => new Promise((ok, no) => {
    (where nobody reads the console) can be reported exactly. */
 const hereErr = async (label, res) => {
   let detail = "";
-  try{ const j = await res.json(); detail = j.title || j.cause || j.error_description || ""; }
+  try{ const j = await res.json();   // cause names the offending parameter; title is generic
+    detail = j.cause || j.title || j.error_description || ""; }
   catch{}
   console.warn("HERE "+label+" rejected:", res.status, detail);
   return new Error(label+" "+res.status+(detail ? ": "+detail.slice(0,90) : ""));
@@ -503,11 +504,13 @@ async function updateLive(){
     const pos = gj.items && gj.items[0] && gj.items[0].position;
     if(!pos) throw new Error("geocode: no match for "+E.destName);
 
+    /* No departureTime on purpose: v8 defaults it to the request time ("now"), which is
+       what makes the duration traffic-aware. The literal departureTime=now is v7 syntax
+       and 400s on v8 ("Malformed request"). */
     const q = new URLSearchParams({
       transportMode:"truck",
       origin: here.latitude + "," + here.longitude,
       destination: pos.lat + "," + pos.lng,
-      departureTime: "now",                 // this is what makes duration traffic-aware
       return: "summary",
       apikey: HERE_API_KEY
     });

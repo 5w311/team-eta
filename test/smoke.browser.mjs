@@ -215,7 +215,9 @@ try {
   for (const p of ["vehicle%5BgrossWeight%5D=36287", "vehicle%5Bheight%5D=412",
                    "vehicle%5BaxleCount%5D=5", "vehicle%5BtrailerCount%5D=1"])
     if (!routeUrl.includes(p)) fail(`routing request missing truck param ${decodeURIComponent(p)}`);
-  if (!routeUrl.includes("departureTime=now")) fail("routing request must be traffic-aware (departureTime=now)");
+  // v8 is traffic-aware by OMITTING departureTime (defaults to now). The v7 literal
+  // departureTime=now gets a 400 "Malformed request" — keep it out.
+  if (routeUrl.includes("departureTime")) fail("routing request must omit departureTime (v8 defaults to now; the literal 400s)");
   await livePage.click("#tabQuick");
   await livePage.waitForTimeout(100);
   if (await livePage.isVisible("#liveLine")) fail("LIVE line must not show on the Estimated tab");
