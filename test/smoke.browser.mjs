@@ -253,8 +253,65 @@ try {
   if (deniedErrors.length) fail("denied page errors: " + JSON.stringify(deniedErrors, null, 2));
   await deniedPage.close();
 
+  // Shared mock for the autofill cases below: same geocode/route responses as the happy path.
+  const mockHere = page => page.addInitScript(() => {
+    Object.defineProperty(navigator, "geolocation", { value: {
+      getCurrentPosition: ok => ok({ coords: { latitude: 41.8781, longitude: -87.6298 } })
+    }});
+    const realFetch = window.fetch.bind(window);
+    window.fetch = (url, ...rest) => {
+      const u = String(url);
+      if (u.includes("geocode.search.hereapi.com"))
+        return Promise.resolve(new Response(JSON.stringify(
+          { items: [{ position: { lat: 36.1627, lng: -86.7816 } }] })));
+      if (u.includes("router.hereapi.com"))
+        return Promise.resolve(new Response(JSON.stringify(
+          // 6h drive, 20min of it traffic, 400 mi (643,738 m)
+          { routes: [{ sections: [{ summary: { duration: 21600, baseDuration: 20400, length: 643738 } }] }] })));
+      return realFetch(url, ...rest);
+    };
+  });
+
+  // Autofill, blank-field path: miles left untouched -> UPDATE LIVE ETA fills it from the
+  // route's real road distance (400 mi from the mocked response).
+  const autofillPage = await browser.newPage();
+  const autofillErrors = [];
+  autofillPage.on("pageerror", e => autofillErrors.push("pageerror: " + e.message));
+  await mockHere(autofillPage);
+  await autofillPage.goto(`http://127.0.0.1:${port}/index.html`, { waitUntil: "networkidle" });
+  await autofillPage.fill("#destIn", "Nashville TN");
+  await autofillPage.click("#destSet");
+  await autofillPage.click("#tabTuned");
+  await autofillPage.click("#liveBtn");
+  await autofillPage.waitForTimeout(300);
+  const filledMiles = await autofillPage.inputValue("#miles");
+  if (filledMiles !== "400")
+    fail(`blank miles should autofill from the live route distance, got ${JSON.stringify(filledMiles)}`);
+  if (autofillErrors.length) fail("autofill page errors: " + JSON.stringify(autofillErrors, null, 2));
+  await autofillPage.close();
+
+  // Autofill, pre-filled path: a mileage already typed (dispatch's own figure, say) must
+  // never be overwritten by the live route's distance, even though it differs from it.
+  const keepPage = await browser.newPage();
+  const keepErrors = [];
+  keepPage.on("pageerror", e => keepErrors.push("pageerror: " + e.message));
+  await mockHere(keepPage);
+  await keepPage.goto(`http://127.0.0.1:${port}/index.html`, { waitUntil: "networkidle" });
+  await keepPage.fill("#miles", "250");
+  await keepPage.dispatchEvent("#miles", "input");
+  await keepPage.fill("#destIn", "Nashville TN");
+  await keepPage.click("#destSet");
+  await keepPage.click("#tabTuned");
+  await keepPage.click("#liveBtn");
+  await keepPage.waitForTimeout(300);
+  const keptMiles = await keepPage.inputValue("#miles");
+  if (keptMiles !== "250")
+    fail(`a typed mileage must survive a live fetch untouched, got ${JSON.stringify(keptMiles)}`);
+  if (keepErrors.length) fail("keep-miles page errors: " + JSON.stringify(keepErrors, null, 2));
+  await keepPage.close();
+
   if (!process.exitCode)
-    console.log(`SMOKE OK: arrival ${etaClock}, shift "${shiftText}" (Tuned only), CLEAR empties the load, reset picker stays up until SET/NOW, LIVE renders from mocked HERE + hides on GPS denial, module loaded, no page errors`);
+    console.log(`SMOKE OK: arrival ${etaClock}, shift "${shiftText}" (Tuned only), CLEAR empties the load, reset picker stays up until SET/NOW, LIVE renders from mocked HERE + hides on GPS denial, LIVE autofills blank miles but never overwrites a typed one, module loaded, no page errors`);
 } finally {
   await browser.close();
   server.close();
