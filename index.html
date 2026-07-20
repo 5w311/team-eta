@@ -244,6 +244,8 @@
       <div class="day" id="etaDay">Enter miles and a departure time.</div>
       <div class="sub hide" id="etaYours"></div>
       <div class="sub hide" id="etaShift"></div>
+      <div class="sub hide" id="liveLine"></div>
+      <div class="note hide" id="liveNote"></div>
       <div class="note hide" id="quickNote"></div>
       <div class="strip hide" id="strip"></div>
       <div class="stripkey hide" id="stripKey">
@@ -306,6 +308,7 @@
       <div class="lbl">How you run</div>
       <div class="presets" id="presets"></div>
       <div class="note" id="runNote" style="margin-top:0"></div>
+      <button class="link" id="liveBtn" style="margin-top:12px;margin-right:16px">UPDATE LIVE ETA</button>
       <button class="link" id="tuneToggle" style="margin-top:12px">+ TUNE TO YOUR TRUCK</button>
       <div class="grid hide" id="tuneGrid">
         <div><div class="lbl">Cruise</div><div class="fieldwrap"><input id="mph" type="number" inputmode="decimal"><span class="suffix">mph</span></div></div>
@@ -395,13 +398,14 @@
     </div>
   </div>
 
-  <div class="foot" style="text-align:center;opacity:.55">MilesPost v2.2.1</div>
+  <div class="foot" style="text-align:center;opacity:.55">MilesPost v2.3</div>
 </div>
 
 <script type="module">
 import {
   resolvePlace, ZONE_LIST, deviceTz, tzTag, fromWall, toWall, clockOf, dayOf, hm, hms,
   RATE, PRESETS, PRESET_VERSION, SWAP_DEFAULT, solveEta, shiftAtArrival,
+  solveEtaLive, liveFresh, LIVE_MAX_AGE_MS,
   RESET_HOURS, AUTO_CLEAR_MS, autoClearElapsed, icsStamp, esc
 } from "./lib/logic.js";
 
@@ -453,6 +457,84 @@ const E = {
   if(s.swap && Array.isArray(s.swap.times)) E.swap = s.swap;
   if(s.pv === PRESET_VERSION){ E.preset = s.preset ?? E.preset; E.p = s.p ?? E.p; }
 })();
+/* ======================= LIVE ETA (HERE truck routing) ======================= */
+/* Single obvious place for the key so it's easy to rotate. Domain-locked to
+   5w311.github.io via HERE "trusted domains", so it is safe in client code. */
+const HERE_API_KEY = "eeDGzgqMEQ6Lf0nvK2ItRFxeVG3QxmQCVkgoDBVtBFE";
+
+/* Standard team rig, in HERE v8 units (dimensions cm, weight kg):
+   13'6" tall, 8'6" wide, ~72 ft tractor+53' van, 80,000 lb, 5 axles, 1 trailer. */
+const TRUCK = { height:412, width:259, length:2195, grossWeight:36287, axleCount:5, trailerCount:1 };
+
+/* A live quote is a snapshot: solved once at fetch time, shown only while liveFresh says
+   it's recent. Never persisted — a stale route is worse than none. */
+const LIVE = { at:null, res:null, trafficS:0, note:"", pending:false, tried:false };
+
+const geoPos = () => new Promise((ok, no) => {
+  if(!navigator.geolocation) return no(new Error("geolocation unavailable"));
+  navigator.geolocation.getCurrentPosition(
+    p => ok(p.coords),
+    e => no(new Error("gps error "+e.code)),          // 1 denied, 2 unavailable, 3 timeout
+    { enableHighAccuracy:false, timeout:8000, maximumAge:300e3 });  // city-level is plenty
+});
+
+async function updateLive(){
+  if(LIVE.pending) return;
+  LIVE.tried = true;
+  if(!E.destName){ LIVE.note = "set a destination to get a live ETA"; renderEta(); return; }
+  LIVE.pending = true; renderLiveBtn();
+  try{
+    const here = await geoPos();
+    const g = await fetch("https://geocode.search.hereapi.com/v1/geocode?q="
+      + encodeURIComponent(E.destName) + "&apikey=" + HERE_API_KEY);
+    if(!g.ok) throw new Error("geocode "+g.status);
+    const gj = await g.json();
+    const pos = gj.items && gj.items[0] && gj.items[0].position;
+    if(!pos) throw new Error("geocode: no match for "+E.destName);
+
+    const q = new URLSearchParams({
+      transportMode:"truck",
+      origin: here.latitude + "," + here.longitude,
+      destination: pos.lat + "," + pos.lng,
+      departureTime: "now",                 // this is what makes duration traffic-aware
+      return: "summary",
+      apikey: HERE_API_KEY
+    });
+    Object.entries(TRUCK).forEach(([k,v]) => q.append("vehicle["+k+"]", v));
+    const rt = await fetch("https://router.hereapi.com/v8/routes?" + q);
+    if(!rt.ok){
+      // Capture HERE's exact error (e.g. free plan rejecting truck params) for reporting.
+      const body = await rt.text().catch(()=> "");
+      console.warn("HERE routing rejected the request:", rt.status, body);
+      throw new Error("route "+rt.status);
+    }
+    const j = await rt.json();
+    const secs = (j.routes && j.routes[0] && j.routes[0].sections) || [];
+    if(!secs.length) throw new Error("route: no sections");
+    const sum = k => secs.reduce((a,s) => a + (Number(s.summary && s.summary[k]) || 0), 0);
+    const duration = sum("duration"), length = sum("length"), base = sum("baseDuration");
+
+    const startMs = Date.now();             // live means from where the truck sits right now
+    LIVE.res = solveEtaLive({ driveSeconds:duration, meters:length, p:E.p, swap:E.swap, startMs });
+    LIVE.trafficS = base ? Math.max(0, duration - base) : 0;
+    LIVE.at = startMs; LIVE.note = "";
+    setTimeout(renderEta, LIVE_MAX_AGE_MS + 1000);   // drop the line once the quote goes stale
+  }catch(err){
+    // Any failure — no GPS permission, no signal, HERE down, no match — falls back
+    // silently to the tuned model. The UI must never block or error on this path.
+    console.warn("live ETA unavailable:", err);
+    LIVE.at = null; LIVE.res = null; LIVE.trafficS = 0;
+    LIVE.note = "live unavailable — showing tuned";
+  }
+  LIVE.pending = false;
+  renderLiveBtn(); renderEta();
+}
+const renderLiveBtn = () => {
+  $("liveBtn").textContent = LIVE.pending ? "UPDATING LIVE…" : "UPDATE LIVE ETA";
+  $("liveBtn").disabled = LIVE.pending;
+};
+$("liveBtn").onclick = () => updateLive();
+
 const saveEta = () => { try{ localStorage.setItem("milespost.eta",
   JSON.stringify({pv:PRESET_VERSION, mode:E.mode, preset:E.preset, p:E.p, swap:E.swap}));
 }catch{} };
@@ -551,6 +633,10 @@ const setEtaMode = m => {
   $("tabTuned").setAttribute("aria-selected", String(m==="tuned"));
   show($("panelTuned"), m==="tuned");
   renderEta();
+  // On-demand refresh, never a timer: opening the Tuned tab refreshes a stale quote,
+  // but only after the driver has asked for live once (no surprise GPS prompt).
+  if(m==="tuned" && LIVE.tried && E.destName && !LIVE.pending && !liveFresh(LIVE.at, Date.now()))
+    updateLive();
 };
 $("tabQuick").onclick = ()=>setEtaMode("quick");
 $("tabTuned").onclick = ()=>setEtaMode("tuned");
@@ -574,7 +660,9 @@ function renderEta(){
   $("etaClear").disabled = !hasLoad;
   if(!hasLoad) etaClearGuard.disarm();
 
-  ["etaYours","etaShift","quickNote","strip","stripKey","legend","cushion"].forEach(id=>show($(id),false));
+  ["etaYours","etaShift","liveLine","liveNote","quickNote","strip","stripKey","legend","cushion"]
+    .forEach(id=>show($(id),false));
+  renderLiveBtn();
   if(!(M > 0 && start)){
     $("etaClock").textContent = "--:--";
     $("etaDay").textContent = "Enter miles and a departure time.";
@@ -605,6 +693,22 @@ function renderEta(){
     show($("etaShift"), true);
     $("etaShift").textContent =
       shiftAtArrival(eta, E.swap) === "day" ? "day shift driving" : "night shift driving";
+
+    /* LIVE line: HERE truck route with current traffic, same team overlay on top.
+       Shown only while the quote is fresh; otherwise it just isn't there. */
+    const liveOn = liveFresh(LIVE.at, Date.now()) && LIVE.res;
+    if(liveOn){
+      show($("liveLine"), true); show($("liveNote"), true);
+      $("liveLine").innerHTML = "LIVE · <b>"+clockOf(LIVE.res.liveEta, showTz)+"</b> "
+        + dayOf(LIVE.res.liveEta, showTz)
+        + " · "+Math.round(LIVE.res.miles)+" mi truck route"
+        + (LIVE.trafficS >= 300 ? " · traffic +"+Math.round(LIVE.trafficS/60)+"m" : "");
+      $("liveNote").textContent = "Traffic is right-now conditions — it mainly shapes the "
+        + "next few hours. The truck-legal routing applies to the whole run.";
+    } else if(LIVE.note){
+      show($("liveNote"), true);
+      $("liveNote").textContent = LIVE.note;
+    }
 
     // Lay every stop on the timeline: swaps and DOT breaks by clock, fuel by odometer.
     const stops = [];

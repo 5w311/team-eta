@@ -9,9 +9,11 @@ real cruise speed, fuel stops, and the fixed-clock driver swap.
 back, and hand a real alarm to your phone's Calendar.
 
 Resolves timezones from a town name. Day and night modes. **Runs 100% offline** — no server,
-no API, no signal required.
+no API, no signal required. The one exception is the optional **LIVE** ETA line, which needs
+signal to ask HERE for a traffic-aware truck route; with no signal it simply isn't shown and
+everything else works as always.
 
-**Current version: v2.2.1**
+**Current version: v2.3**
 
 ## Files
 
@@ -49,6 +51,25 @@ worker cached it on first load.
   keeps rolling through driver swaps. The 11/14 and the 70-hour cycle are still on you.
 
 ## Version history
+
+### v2.3
+
+- **LIVE ETA line** on the Tuned Model tab, alongside Estimated and Tuned. Tap UPDATE LIVE
+  ETA and the app asks HERE Routing (truck profile — 13'6", 8'6" wide, ~72 ft, 80,000 lb,
+  5 axles, 1 trailer) for a traffic-aware drive time from your GPS position to the
+  destination you already typed, then runs the **same** team overlay (swaps, DOT break,
+  fuel) on top. Shows the arrival, real road miles, and the current traffic cost.
+- **Honest caveat, in the UI too:** live traffic reflects conditions *right now* — on a
+  multi-day team run it mainly shapes the next few hours. The truck-legal routing (real
+  road speeds, truck-legal path) is what helps the whole run.
+- **Fails soft, always:** no GPS permission, no signal, a HERE error, or a quote older
+  than 10 minutes and the LIVE line simply isn't shown — the app behaves exactly as
+  before, with a small "live unavailable — showing tuned" note. Nothing blocks, nothing
+  errors. Refreshes on demand only (button or reopening the tab), never on a timer.
+- The service worker now handles only same-origin requests, so API calls always hit the
+  live network and can never be served a stale cached quote.
+- The HERE key is domain-locked to this app's origin and lives in one named const
+  (`HERE_API_KEY`) for easy rotation. Presets unchanged — saved tuning is preserved.
 
 ### v2.2.1
 
