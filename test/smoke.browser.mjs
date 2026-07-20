@@ -168,8 +168,93 @@ try {
 
   if (errors.length) fail("page errors: " + JSON.stringify(errors, null, 2));
 
+  // ---- LIVE ETA wiring: mocked HERE fetch + mocked geolocation. No real key, no network.
+  // Happy path: GPS ok, geocode + truck route answer -> LIVE line renders with the arrival.
+  const livePage = await browser.newPage();
+  const liveErrors = [];
+  livePage.on("pageerror", e => liveErrors.push("pageerror: " + e.message));
+  await livePage.addInitScript(() => {
+    Object.defineProperty(navigator, "geolocation", { value: {
+      getCurrentPosition: ok => ok({ coords: { latitude: 41.8781, longitude: -87.6298 } })
+    }});
+    const realFetch = window.fetch.bind(window);
+    window.__hereUrls = [];
+    window.fetch = (url, ...rest) => {
+      const u = String(url);
+      if (u.includes("hereapi.com")) window.__hereUrls.push(u);
+      if (u.includes("geocode.search.hereapi.com"))
+        return Promise.resolve(new Response(JSON.stringify(
+          { items: [{ position: { lat: 36.1627, lng: -86.7816 } }] })));
+      if (u.includes("router.hereapi.com"))
+        return Promise.resolve(new Response(JSON.stringify(
+          // 6h drive, 20min of it traffic, 400 mi (643,738 m)
+          { routes: [{ sections: [{ summary: { duration: 21600, baseDuration: 20400, length: 643738 } }] }] })));
+      return realFetch(url, ...rest);
+    };
+  });
+  await livePage.goto(`http://127.0.0.1:${port}/index.html`, { waitUntil: "networkidle" });
+  await livePage.fill("#miles", "400");
+  await livePage.dispatchEvent("#miles", "input");
+  await livePage.fill("#destIn", "Nashville TN");
+  await livePage.click("#destSet");
+  await livePage.click("#tabTuned");
+  await livePage.click("#liveBtn");
+  await livePage.waitForTimeout(300);
+  if (!(await livePage.isVisible("#liveLine")))
+    fail("LIVE line should render after a successful mocked HERE fetch");
+  const liveText = (await livePage.textContent("#liveLine"))?.trim() || "";
+  if (!/^LIVE · \d{2}:\d{2}/.test(liveText))
+    fail(`LIVE line should lead with an arrival clock, got ${JSON.stringify(liveText)}`);
+  if (!liveText.includes("400 mi")) fail(`LIVE line should show the route miles, got ${JSON.stringify(liveText)}`);
+  if (!liveText.includes("traffic +20m")) fail(`LIVE line should show the traffic cost, got ${JSON.stringify(liveText)}`);
+  // Route params sanity: the request must be truck mode with the vehicle[...] dimensions —
+  // never a silent fall-back to car routing.
+  const routeUrl = await livePage.evaluate(() =>
+    (window.__hereUrls || []).find(u => u.includes("router.hereapi.com")) || "");
+  if (!routeUrl.includes("transportMode=truck")) fail("routing request must use transportMode=truck");
+  for (const p of ["vehicle%5BgrossWeight%5D=36287", "vehicle%5Bheight%5D=412",
+                   "vehicle%5BaxleCount%5D=5", "vehicle%5BtrailerCount%5D=1"])
+    if (!routeUrl.includes(p)) fail(`routing request missing truck param ${decodeURIComponent(p)}`);
+  // v8 is traffic-aware by OMITTING departureTime (defaults to now). The v7 literal
+  // departureTime=now gets a 400 "Malformed request" — keep it out.
+  if (routeUrl.includes("departureTime")) fail("routing request must omit departureTime (v8 defaults to now; the literal 400s)");
+  await livePage.click("#tabQuick");
+  await livePage.waitForTimeout(100);
+  if (await livePage.isVisible("#liveLine")) fail("LIVE line must not show on the Estimated tab");
+  if (liveErrors.length) fail("live page errors: " + JSON.stringify(liveErrors, null, 2));
+  await livePage.close();
+
+  // Denied path: GPS permission refused -> LIVE line stays hidden, tuned readout intact,
+  // unobtrusive note shown. The UI must never block or error.
+  const deniedPage = await browser.newPage();
+  const deniedErrors = [];
+  deniedPage.on("pageerror", e => deniedErrors.push("pageerror: " + e.message));
+  await deniedPage.addInitScript(() => {
+    Object.defineProperty(navigator, "geolocation", { value: {
+      getCurrentPosition: (_ok, err) => err({ code: 1, message: "denied" })
+    }});
+  });
+  await deniedPage.goto(`http://127.0.0.1:${port}/index.html`, { waitUntil: "networkidle" });
+  await deniedPage.fill("#miles", "400");
+  await deniedPage.dispatchEvent("#miles", "input");
+  await deniedPage.fill("#destIn", "Nashville TN");
+  await deniedPage.click("#destSet");
+  await deniedPage.click("#tabTuned");
+  await deniedPage.click("#liveBtn");
+  await deniedPage.waitForTimeout(300);
+  if (await deniedPage.isVisible("#liveLine"))
+    fail("LIVE line must stay hidden when GPS is denied");
+  const noteText = (await deniedPage.textContent("#liveNote"))?.trim() || "";
+  if (!/live unavailable/.test(noteText))
+    fail(`denied path should show the unobtrusive fallback note, got ${JSON.stringify(noteText)}`);
+  const tunedClock = (await deniedPage.textContent("#etaClock"))?.trim();
+  if (!/^\d{2}:\d{2}$/.test(tunedClock || "") || tunedClock === "--:--")
+    fail("tuned readout must stay intact when live is unavailable");
+  if (deniedErrors.length) fail("denied page errors: " + JSON.stringify(deniedErrors, null, 2));
+  await deniedPage.close();
+
   if (!process.exitCode)
-    console.log(`SMOKE OK: arrival ${etaClock}, shift "${shiftText}" (Tuned only), CLEAR empties the load, reset picker stays up until SET/NOW, module loaded, no page errors`);
+    console.log(`SMOKE OK: arrival ${etaClock}, shift "${shiftText}" (Tuned only), CLEAR empties the load, reset picker stays up until SET/NOW, LIVE renders from mocked HERE + hides on GPS denial, module loaded, no page errors`);
 } finally {
   await browser.close();
   server.close();
