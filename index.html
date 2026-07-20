@@ -474,9 +474,20 @@ const geoPos = () => new Promise((ok, no) => {
   if(!navigator.geolocation) return no(new Error("geolocation unavailable"));
   navigator.geolocation.getCurrentPosition(
     p => ok(p.coords),
-    e => no(new Error("gps error "+e.code)),          // 1 denied, 2 unavailable, 3 timeout
+    e => no(new Error({1:"location permission denied",2:"location unavailable",
+      3:"location timed out"}[e.code] || "location error")),
     { enableHighAccuracy:false, timeout:8000, maximumAge:300e3 });  // city-level is plenty
 });
+
+/* HERE error bodies carry a human "title"/"cause" — surface it so a failure on a phone
+   (where nobody reads the console) can be reported exactly. */
+const hereErr = async (label, res) => {
+  let detail = "";
+  try{ const j = await res.json(); detail = j.title || j.cause || j.error_description || ""; }
+  catch{}
+  console.warn("HERE "+label+" rejected:", res.status, detail);
+  return new Error(label+" "+res.status+(detail ? ": "+detail.slice(0,90) : ""));
+};
 
 async function updateLive(){
   if(LIVE.pending) return;
@@ -487,7 +498,7 @@ async function updateLive(){
     const here = await geoPos();
     const g = await fetch("https://geocode.search.hereapi.com/v1/geocode?q="
       + encodeURIComponent(E.destName) + "&apikey=" + HERE_API_KEY);
-    if(!g.ok) throw new Error("geocode "+g.status);
+    if(!g.ok) throw await hereErr("geocode", g);
     const gj = await g.json();
     const pos = gj.items && gj.items[0] && gj.items[0].position;
     if(!pos) throw new Error("geocode: no match for "+E.destName);
@@ -502,12 +513,9 @@ async function updateLive(){
     });
     Object.entries(TRUCK).forEach(([k,v]) => q.append("vehicle["+k+"]", v));
     const rt = await fetch("https://router.hereapi.com/v8/routes?" + q);
-    if(!rt.ok){
-      // Capture HERE's exact error (e.g. free plan rejecting truck params) for reporting.
-      const body = await rt.text().catch(()=> "");
-      console.warn("HERE routing rejected the request:", rt.status, body);
-      throw new Error("route "+rt.status);
-    }
+    // A rejection here (e.g. free plan refusing truck params) surfaces HERE's own error
+    // title in the note, so it can be reported exactly even from a phone.
+    if(!rt.ok) throw await hereErr("route", rt);
     const j = await rt.json();
     const secs = (j.routes && j.routes[0] && j.routes[0].sections) || [];
     if(!secs.length) throw new Error("route: no sections");
@@ -522,9 +530,11 @@ async function updateLive(){
   }catch(err){
     // Any failure — no GPS permission, no signal, HERE down, no match — falls back
     // silently to the tuned model. The UI must never block or error on this path.
+    // The note names the reason (terse) so a driver can report it without a console.
     console.warn("live ETA unavailable:", err);
     LIVE.at = null; LIVE.res = null; LIVE.trafficS = 0;
-    LIVE.note = "live unavailable — showing tuned";
+    const why = (err && err.message) ? err.message : "error";
+    LIVE.note = "live unavailable ("+why+") — showing tuned";
   }
   LIVE.pending = false;
   renderLiveBtn(); renderEta();
