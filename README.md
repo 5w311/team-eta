@@ -13,7 +13,7 @@ no API, no signal required. The one exception is the optional **LIVE** ETA line,
 signal to ask HERE for a traffic-aware truck route; with no signal it simply isn't shown and
 everything else works as always.
 
-**Current version: v2.3**
+**Current version: v2.3.1**
 
 ## Files
 
@@ -51,6 +51,13 @@ worker cached it on first load.
   keeps rolling through driver swaps. The 11/14 and the 70-hour cycle are still on you.
 
 ## Version history
+
+### v2.3.1
+
+- **UPDATE LIVE ETA now fills in miles when the field is blank**, using the real road
+  distance from HERE's route — type a destination, tap the button, done. It never
+  overwrites a mileage you've already entered (dispatch's number is often contractual and
+  differs from the real road distance on purpose), and typing mid-fetch still wins.
 
 ### v2.3
 
