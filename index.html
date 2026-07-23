@@ -627,8 +627,14 @@ const primeBias = () => {
 function attachPlaceSuggest(input, listEl, onPick){
   let timer = null, token = 0;
   const hideList = () => { listEl.innerHTML = ""; show(listEl, false); };
-  const render = items => {
+  const render = (items, isDebug) => {
     if(!items.length){ hideList(); return; }
+    if(isDebug){
+      // TEMP DIAGNOSTIC: plain, unclickable text — not a real suggestion.
+      listEl.innerHTML = "<div style='padding:11px 12px;color:var(--late);font-family:var(--sans);font-size:13px'>"+items[0]+"</div>";
+      show(listEl, true);
+      return;
+    }
     listEl.innerHTML = items.map(s => "<button>"+s+"</button>").join("");
     [...listEl.children].forEach((btn,i) => {
       btn.onclick = () => { input.value = items[i]; hideList(); onPick(); };
@@ -637,13 +643,25 @@ function attachPlaceSuggest(input, listEl, onPick){
   };
   const fetchNow = (q, myToken) => {
     const at = placeBias ? "&at="+placeBias.latitude+","+placeBias.longitude : "";
-    fetch("https://autosuggest.search.hereapi.com/v1/autosuggest?q="+encodeURIComponent(q)
-      + at + "&in=countryCode:USA&limit=5&apikey="+HERE_API_KEY)
-      .then(res => res.ok ? res.json() : null)
+    const url = "https://autosuggest.search.hereapi.com/v1/autosuggest?q="+encodeURIComponent(q)
+      + at + "&in=countryCode:USA&limit=5&apikey="+HERE_API_KEY;
+    fetch(url)
+      .then(async res => {
+        if(res.ok) return res.json();
+        // TEMP DIAGNOSTIC (remove once the real cause is known): suggestions normally
+        // fail silently, but that leaves no way to see why on a phone with no console.
+        // Show the failure reason directly in the dropdown, once, for this debug round.
+        const e = await hereErr("suggest", res);
+        if(myToken===token) render(["⚠ "+e.message], true);
+        return null;
+      })
       // A newer keystroke fired since this request went out — a late, out-of-order
       // response must not clobber a fresher (still-typing) state.
       .then(j => { if(myToken===token && j) render(formatPlaceSuggestions(j.items)); })
-      .catch(()=>{});
+      .catch(err => {
+        console.warn("suggest fetch failed:", err);
+        if(myToken===token) render(["⚠ suggest fetch failed: "+(err && err.message || err)], true);
+      });
   };
   input.addEventListener("input", () => {
     primeBias();
