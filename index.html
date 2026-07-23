@@ -92,6 +92,37 @@
   label,.lbl{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.14em;
     text-transform:uppercase;color:var(--mute);margin-bottom:6px}
 
+  /* Card title + its "?" help button, as siblings — never nested inside a label whose
+     textContent gets overwritten at runtime (etaLabel, rsLabel). */
+  .lbl-row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px}
+  .lbl-row .lbl{margin-bottom:0}
+  .help-btn{width:44px;height:44px;padding:0;border:none;background:transparent;
+    display:inline-flex;align-items:center;justify-content:center;flex:none;cursor:pointer}
+  .help-btn span{width:22px;height:22px;border-radius:50%;border:1px solid var(--line);
+    display:flex;align-items:center;justify-content:center;font-family:var(--mono);
+    font-size:11px;color:var(--mute);line-height:1}
+  .help-btn:hover span,.help-btn:focus-visible span,.help-btn:active span{
+    border-color:var(--amber);color:var(--amber)}
+
+  /* One shared help modal, reused by all four "?" buttons — bottom sheet, no close
+     button; dismiss only by tapping the dimmed backdrop (or Escape). */
+  .helpBackdrop{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:50;
+    display:flex;align-items:flex-end;justify-content:center}
+  [data-theme="day"] .helpBackdrop{background:rgba(15,20,25,.35)}
+  .helpPanel{background:var(--panel);border:1px solid var(--line);border-bottom:none;
+    border-radius:14px 14px 0 0;box-shadow:var(--shadow);width:100%;max-width:470px;
+    max-height:80vh;overflow-y:auto;
+    padding:20px calc(20px + env(safe-area-inset-right))
+      calc(14px + env(safe-area-inset-bottom)) calc(20px + env(safe-area-inset-left))}
+  .helpPanel .lbl{margin-bottom:10px}
+  .helpPanel p{font-family:var(--sans);font-size:14px;line-height:1.55;color:var(--ink);
+    margin:0 0 12px}
+  .helpPanel ul{font-family:var(--sans);font-size:14px;line-height:1.55;color:var(--ink);
+    margin:0 0 4px;padding-left:18px}
+  .helpPanel li{margin-bottom:6px}
+  .helpHint{text-align:center;font-family:var(--mono);font-size:10px;letter-spacing:.06em;
+    color:var(--mute);margin-top:10px}
+
   input,select{width:100%;background:var(--asphalt);color:var(--ink);border:1px solid var(--line);
     border-radius:6px;padding:11px 12px;font-family:var(--mono);font-size:16px;outline:none;
     -webkit-appearance:none;appearance:none}
@@ -239,7 +270,10 @@
     </div>
 
     <div class="card readout">
-      <div class="lbl" id="etaLabel">Arrival</div>
+      <div class="lbl-row">
+        <div class="lbl" id="etaLabel">Arrival</div>
+        <button class="help-btn" id="etaHelp" aria-label="What is this?" type="button"><span>?</span></button>
+      </div>
       <div class="big" id="etaClock">--:--</div>
       <div class="day" id="etaDay">Enter miles and a departure time.</div>
       <div class="sub hide" id="etaYours"></div>
@@ -258,6 +292,10 @@
     </div>
 
     <div class="card">
+      <div class="lbl-row">
+        <div class="lbl">Your load</div>
+        <button class="help-btn" id="loadHelp" aria-label="What is this?" type="button"><span>?</span></button>
+      </div>
       <div class="group">
         <label for="miles">Miles remaining</label>
         <div class="fieldwrap">
@@ -305,7 +343,10 @@
     </div>
 
     <div class="card hide" id="panelTuned">
-      <div class="lbl">How you run</div>
+      <div class="lbl-row">
+        <div class="lbl" id="runLabel">How you run</div>
+        <button class="help-btn" id="runHelp" aria-label="What is this?" type="button"><span>?</span></button>
+      </div>
       <div class="presets" id="presets"></div>
       <div class="note" id="runNote" style="margin-top:0"></div>
       <button class="link" id="liveBtn" style="margin-top:12px;margin-right:16px">UPDATE LIVE ETA</button>
@@ -337,7 +378,10 @@
   <!-- ========================== 34 RESET ========================== -->
   <div id="viewReset" class="hide">
     <div class="card readout" id="rsReadout">
-      <div class="lbl" id="rsLabel">Legal at</div>
+      <div class="lbl-row">
+        <div class="lbl" id="rsLabel">Legal at</div>
+        <button class="help-btn" id="rsHelp" aria-label="What is this?" type="button"><span>?</span></button>
+      </div>
       <div class="big" id="rsClock">--:--</div>
       <div class="day" id="rsDay">Set the time you shut down.</div>
       <div class="sub hide" id="rsCount"></div>
@@ -398,7 +442,17 @@
     </div>
   </div>
 
-  <div class="foot" style="text-align:center;opacity:.55">MilesPost v2.3.1</div>
+  <div class="foot" style="text-align:center;opacity:.55">MilesPost v2.4</div>
+</div>
+
+<!-- Shared help modal, reused by every "?" button. No close button — dismiss by
+     tapping the dimmed backdrop (or Escape). -->
+<div class="helpBackdrop hide" id="helpBackdrop">
+  <div class="helpPanel" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+    <div class="lbl" id="helpTitle"></div>
+    <div id="helpBody"></div>
+    <div class="helpHint">tap outside to close</div>
+  </div>
 </div>
 
 <script type="module">
@@ -432,6 +486,66 @@ applyTheme(theme);
 const $ = id => document.getElementById(id);
 const show = (el,on) => el.classList.toggle("hide", !on);
 const inFrame = (()=>{ try{ return window.self !== window.top; } catch { return true; } })();
+
+/* ======================= help modal ======================= */
+/* Purely informational — no state, nothing persisted. One shared panel, reused by
+   every "?" button. Dismiss only by tapping the dimmed backdrop (or Escape) — there's
+   no close button, so a tap inside the panel while reading must never close it. */
+function openHelp(title, bodyHtml){
+  $("helpTitle").textContent = title;
+  $("helpBody").innerHTML = bodyHtml;
+  show($("helpBackdrop"), true);
+}
+function closeHelp(){ show($("helpBackdrop"), false); }
+$("helpBackdrop").addEventListener("click", e=>{
+  if(e.target.id==="helpBackdrop") closeHelp();   // backdrop itself only, not the panel
+});
+document.addEventListener("keydown", e=>{
+  if(e.key==="Escape" && !$("helpBackdrop").classList.contains("hide")) closeHelp();
+});
+
+const HELP = {
+  etaQuick:{ title:"Estimated ETA", body:
+    "<p>This assumes dispatch's number: your load's miles divided by a flat 50 mph, "+
+    "nonstop. No stops, no traffic, no truck-legal routing — just a fast, rough guess.</p>"+
+    "<ul><li>Good for sanity-checking dispatch's own ETA.</li>"+
+    "<li>It doesn't know about fuel, swaps, or breaks — expect it to run early.</li></ul>" },
+  etaTuned:{ title:"Tuned Model ETA", body:
+    "<p>This runs your actual pace instead of a flat 50: your chosen cruise speed, plus "+
+    "real stops — fuel, driver swaps on the clock, and one DOT break per shift. Closer to "+
+    "what you'll actually see happen.</p>"+
+    "<ul><li>Pick a preset below, or dial in your own numbers under \"TUNE TO YOUR TRUCK.\"</li>"+
+    "<li>Tap \"UPDATE LIVE ETA\" for a truck-legal, traffic-aware read when you've got signal.</li></ul>" },
+  load:{ title:"Your Load", body:
+    "<p>This is the run you're on: miles left, where you're headed, and when you roll out. "+
+    "Both ETA lines above read straight from these fields — change a number here and every "+
+    "readout updates.</p>"+
+    "<ul><li>Type miles from dispatch, or leave it blank and tap \"UPDATE LIVE ETA\" on the "+
+    "Tuned tab to fill it in from the real route.</li>"+
+    "<li>Destination just needs a town and state — it sets your time zone and, for live ETA, "+
+    "the actual route.</li>"+
+    "<li>CLEAR wipes the load but keeps your tuning and swap schedule.</li></ul>" },
+  run:{ title:"How You Run", body:
+    "<p>This is your driving profile — how the Tuned Model turns miles into time. Pick a "+
+    "preset, or dial in your own cruise speed, fuel stops, swap length, and DOT break timing.</p>"+
+    "<ul><li>DOT break has a 30-minute floor — the legal minimum, so it won't let you go lower.</li>"+
+    "<li>Changing a preset only touches the pace math — your swap schedule and theme stay put.</li></ul>" },
+  reset:{ title:"Legal At", body:
+    "<p>This tracks your 34-hour restart. Set the moment you shut down, and this shows the "+
+    "exact time you're legal to run again — 34 real hours later, DST accounted for.</p>"+
+    "<ul><li>Can't send a phone notification while the app's closed, so it hands you a "+
+    "calendar event with two alarms (30 min before, and at the moment) instead — add it "+
+    "when prompted.</li>"+
+    "<li>\"BROKE THE 34\" restarts the clock from right now if your reset gets interrupted.</li>"+
+    "<li>The timer clears itself automatically 10 minutes after you go legal.</li></ul>" }
+};
+$("etaHelp").onclick = ()=>{
+  const h = E.mode==="quick" ? HELP.etaQuick : HELP.etaTuned;
+  openHelp(h.title, h.body);
+};
+$("loadHelp").onclick = ()=> openHelp(HELP.load.title, HELP.load.body);
+$("runHelp").onclick = ()=> openHelp(HELP.run.title, HELP.run.body);
+$("rsHelp").onclick = ()=> openHelp(HELP.reset.title, HELP.reset.body);
 
 // Old keys are read once so a rename never costs the driver their settings.
 const loadJSON = (...keys) => {

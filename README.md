@@ -13,7 +13,7 @@ no API, no signal required. The one exception is the optional **LIVE** ETA line,
 signal to ask HERE for a traffic-aware truck route; with no signal it simply isn't shown and
 everything else works as always.
 
-**Current version: v2.3.1**
+**Current version: v2.4**
 
 ## Files
 
@@ -51,6 +51,14 @@ worker cached it on first load.
   keeps rolling through driver swaps. The 11/14 and the 70-hour cycle are still on you.
 
 ## Version history
+
+### v2.4
+
+- **"?" help buttons** on the four main cards (Arrival, Your Load, How You Run, 34-reset
+  readout) open a short plain-English explainer with a couple of practical tips — the
+  Arrival one is mode-aware (Estimated vs Tuned). One shared bottom-sheet panel, no close
+  button — dismiss by tapping outside it. Purely informational: no logic, state, or math
+  touched.
 
 ### v2.3.1
 
