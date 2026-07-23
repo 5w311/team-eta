@@ -630,8 +630,13 @@ function attachPlaceSuggest(input, listEl, onPick){
   const render = (items, isDebug) => {
     if(!items.length){ hideList(); return; }
     if(isDebug){
-      // TEMP DIAGNOSTIC: plain, unclickable text — not a real suggestion.
-      listEl.innerHTML = "<div style='padding:11px 12px;color:var(--late);font-family:var(--sans);font-size:13px'>"+items[0]+"</div>";
+      // TEMP DIAGNOSTIC: plain, unclickable text — not a real suggestion. Escaped and
+      // wrapped so a full raw JSON item is actually readable instead of clipped.
+      const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+      listEl.innerHTML = items.map(line =>
+        "<div style='padding:8px 12px;color:var(--late);font-family:var(--sans);"+
+        "font-size:12px;line-height:1.4;white-space:pre-wrap;word-break:break-word'>"+
+        esc(line)+"</div>").join("");
       show(listEl, true);
       return;
     }
@@ -662,11 +667,14 @@ function attachPlaceSuggest(input, listEl, onPick){
         const items = formatPlaceSuggestions(j.items);
         if(items.length){ render(items); return; }
         // TEMP DIAGNOSTIC: the request succeeded but nothing survived the locality
-        // filter — show the raw count so "HERE found nothing" is distinguishable from
-        // "HERE found results but our resultType/city/stateCode filter is too strict".
+        // filter — show every result's resultType plus the full first item, untruncated
+        // (previous cut at 140 chars sliced off exactly the resultType value).
         const raw = (j.items||[]).length;
-        if(raw) render(["⚠ 0 city matches in "+raw+" raw result"+(raw===1?"":"s")+
-          " (first: "+JSON.stringify(j.items[0]).slice(0,140)+")"], true);
+        if(raw){
+          const types = (j.items||[]).map(x => (x && x.resultType) || "?").join(", ");
+          render(["⚠ 0/"+raw+" matched. types: ["+types+"]",
+            "item0: "+JSON.stringify(j.items[0])], true);
+        }
       })
       .catch(err => {
         console.warn("suggest fetch failed:", err);
