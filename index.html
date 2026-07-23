@@ -456,7 +456,7 @@
     </div>
   </div>
 
-  <div class="foot" style="text-align:center;opacity:.55">MilesPost v2.4.1</div>
+  <div class="foot" style="text-align:center;opacity:.55">MilesPost v2.4.2</div>
 </div>
 
 <!-- Shared help modal, reused by every "?" button. No close button — dismiss by
@@ -627,19 +627,8 @@ const primeBias = () => {
 function attachPlaceSuggest(input, listEl, onPick){
   let timer = null, token = 0;
   const hideList = () => { listEl.innerHTML = ""; show(listEl, false); };
-  const render = (items, isDebug) => {
+  const render = items => {
     if(!items.length){ hideList(); return; }
-    if(isDebug){
-      // TEMP DIAGNOSTIC: plain, unclickable text — not a real suggestion. Escaped and
-      // wrapped so a full raw JSON item is actually readable instead of clipped.
-      const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-      listEl.innerHTML = items.map(line =>
-        "<div style='padding:8px 12px;color:var(--late);font-family:var(--sans);"+
-        "font-size:12px;line-height:1.4;white-space:pre-wrap;word-break:break-word'>"+
-        esc(line)+"</div>").join("");
-      show(listEl, true);
-      return;
-    }
     listEl.innerHTML = items.map(s => "<button>"+s+"</button>").join("");
     [...listEl.children].forEach((btn,i) => {
       btn.onclick = () => { input.value = items[i]; hideList(); onPick(); };
@@ -651,35 +640,11 @@ function attachPlaceSuggest(input, listEl, onPick){
     const url = "https://autosuggest.search.hereapi.com/v1/autosuggest?q="+encodeURIComponent(q)
       + at + "&in=countryCode:USA&limit=5&apikey="+HERE_API_KEY;
     fetch(url)
-      .then(async res => {
-        if(res.ok) return res.json();
-        // TEMP DIAGNOSTIC (remove once the real cause is known): suggestions normally
-        // fail silently, but that leaves no way to see why on a phone with no console.
-        // Show the failure reason directly in the dropdown, once, for this debug round.
-        const e = await hereErr("suggest", res);
-        if(myToken===token) render(["⚠ "+e.message], true);
-        return null;
-      })
+      .then(res => res.ok ? res.json() : null)
       // A newer keystroke fired since this request went out — a late, out-of-order
       // response must not clobber a fresher (still-typing) state.
-      .then(j => {
-        if(myToken!==token || !j) return;
-        const items = formatPlaceSuggestions(j.items);
-        if(items.length){ render(items); return; }
-        // TEMP DIAGNOSTIC: the request succeeded but nothing survived the locality
-        // filter — show every result's resultType plus the full first item, untruncated
-        // (previous cut at 140 chars sliced off exactly the resultType value).
-        const raw = (j.items||[]).length;
-        if(raw){
-          const types = (j.items||[]).map(x => (x && x.resultType) || "?").join(", ");
-          render(["⚠ 0/"+raw+" matched. types: ["+types+"]",
-            "item0: "+JSON.stringify(j.items[0])], true);
-        }
-      })
-      .catch(err => {
-        console.warn("suggest fetch failed:", err);
-        if(myToken===token) render(["⚠ suggest fetch failed: "+(err && err.message || err)], true);
-      });
+      .then(j => { if(myToken===token && j) render(formatPlaceSuggestions(j.items)); })
+      .catch(()=>{});   // offline/failed: the dropdown just doesn't appear
   };
   input.addEventListener("input", () => {
     primeBias();

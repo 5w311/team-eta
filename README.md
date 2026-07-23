@@ -13,7 +13,7 @@ no API, no signal required. The one exception is the optional **LIVE** ETA line,
 signal to ask HERE for a traffic-aware truck route; with no signal it simply isn't shown and
 everything else works as always.
 
-**Current version: v2.4.1**
+**Current version: v2.4.2**
 
 ## Files
 
@@ -51,6 +51,15 @@ worker cached it on first load.
   keeps rolling through driver swaps. The 11/14 and the 70-hour cycle are still on you.
 
 ## Version history
+
+### v2.4.2
+
+- **Fix: city suggestions (v2.4.1) weren't showing any results.** HERE's Autosuggest
+  response, on this account's plan, returns locality (city) results with only a flat
+  `address.label` (e.g. "Chattanooga, TN, United States") — not the structured
+  `address.city`/`address.stateCode` fields the original filter required. It now falls
+  back to parsing the city and state straight out of the label (or title) when those
+  fields are missing, while still preferring them if a response ever does include them.
 
 ### v2.4.1
 
