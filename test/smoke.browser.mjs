@@ -310,6 +310,50 @@ try {
   if (keepErrors.length) fail("keep-miles page errors: " + JSON.stringify(keepErrors, null, 2));
   await keepPage.close();
 
+  // ---- City suggestions (destIn/origIn/rsIn share one mechanism — test destIn as the
+  // representative case). Mocked HERE Autosuggest response mixes a locality result with a
+  // non-locality one, proving formatPlaceSuggestions' filtering runs through end-to-end.
+  const suggestPage = await browser.newPage();
+  const suggestErrors = [];
+  suggestPage.on("pageerror", e => suggestErrors.push("pageerror: " + e.message));
+  await suggestPage.addInitScript(() => {
+    const realFetch = window.fetch.bind(window);
+    window.fetch = (url, ...rest) => {
+      const u = String(url);
+      if (u.includes("autosuggest.search.hereapi.com"))
+        return Promise.resolve(new Response(JSON.stringify({ items: [
+          { resultType: "locality", address: { city: "Nashville", stateCode: "TN" } },
+          { resultType: "place", address: { city: "Nashville", stateCode: "TN", label: "Nashville Zoo" } },
+        ]})));
+      return realFetch(url, ...rest);
+    };
+  });
+  await suggestPage.goto(`http://127.0.0.1:${port}/index.html`, { waitUntil: "networkidle" });
+  await suggestPage.fill("#destIn", "Nash");
+  // Wait for the debounced (300ms) mocked fetch to land, rather than a fixed sleep —
+  // more reliable under variable CI/sandbox load than guessing the round-trip time.
+  try{ await suggestPage.waitForSelector("#destSuggest button", { timeout: 5000 }); }
+  catch{ fail("suggestion dropdown should appear after typing 3+ characters"); }
+  if (!(await suggestPage.isVisible("#destSuggest")))
+    fail("suggestion dropdown should appear after typing 3+ characters");
+  const suggestButtons = await suggestPage.locator("#destSuggest button").allTextContents();
+  if (JSON.stringify(suggestButtons) !== JSON.stringify(["Nashville, TN"]))
+    fail(`suggestion list should show only the deduped locality result, got ${JSON.stringify(suggestButtons)}`);
+  await suggestPage.click("#destSuggest button");
+  await suggestPage.waitForTimeout(150);
+  if (await suggestPage.isVisible("#destSuggest")) fail("clicking a suggestion should close the dropdown");
+  if ((await suggestPage.inputValue("#destIn")) !== "Nashville, TN")
+    fail("clicking a suggestion should fill the input with the picked 'City, ST'");
+  // The real proof this isn't just a text fill: doDest() must actually have run and
+  // resolved the place (destChip appears with the picked destination).
+  if (!(await suggestPage.isVisible("#destChip")))
+    fail("picking a suggestion should resolve the destination (destChip should appear)");
+  const chipText = (await suggestPage.textContent("#destChip"))?.trim() || "";
+  if (!chipText.includes("Nashville, TN"))
+    fail(`destChip should show the resolved destination, got ${JSON.stringify(chipText)}`);
+  if (suggestErrors.length) fail("suggest page errors: " + JSON.stringify(suggestErrors, null, 2));
+  await suggestPage.close();
+
   // ---- Help modal: shared by all four "?" buttons. Light smoke — one button proves the
   // mechanism (open with real content, panel-tap doesn't dismiss, backdrop-tap does).
   // Uses #rsHelp since the main page is currently on the 34 Reset tab.
@@ -329,7 +373,7 @@ try {
   if (await page.isVisible("#helpBackdrop")) fail("tapping the backdrop should close the help modal");
 
   if (!process.exitCode)
-    console.log(`SMOKE OK: arrival ${etaClock}, shift "${shiftText}" (Tuned only), CLEAR empties the load, reset picker stays up until SET/NOW, LIVE renders from mocked HERE + hides on GPS denial, LIVE autofills blank miles but never overwrites a typed one, help modal opens/stays/dismisses correctly, module loaded, no page errors`);
+    console.log(`SMOKE OK: arrival ${etaClock}, shift "${shiftText}" (Tuned only), CLEAR empties the load, reset picker stays up until SET/NOW, LIVE renders from mocked HERE + hides on GPS denial, LIVE autofills blank miles but never overwrites a typed one, city suggestions filter/dedupe and resolve on pick, help modal opens/stays/dismisses correctly, module loaded, no page errors`);
 } finally {
   await browser.close();
   server.close();

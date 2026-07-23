@@ -13,7 +13,7 @@ no API, no signal required. The one exception is the optional **LIVE** ETA line,
 signal to ask HERE for a traffic-aware truck route; with no signal it simply isn't shown and
 everything else works as always.
 
-**Current version: v2.4**
+**Current version: v2.4.1**
 
 ## Files
 
@@ -51,6 +51,15 @@ worker cached it on first load.
   keeps rolling through driver swaps. The 11/14 and the 70-hour cycle are still on you.
 
 ## Version history
+
+### v2.4.1
+
+- **City suggestions while typing** a destination, an origin change, or a 34-reset
+  shutdown location — a small dropdown of "City, ST" matches from HERE Autosuggest,
+  debounced (300ms, 3+ characters). Tap one and it fills the field and resolves it
+  immediately, same as typing the full thing and hitting SET. No signal, no results, or
+  a failed request and the dropdown just doesn't appear — typing and SET/Enter keep
+  working exactly as before, fully offline.
 
 ### v2.4
 
