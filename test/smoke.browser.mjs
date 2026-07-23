@@ -310,8 +310,26 @@ try {
   if (keepErrors.length) fail("keep-miles page errors: " + JSON.stringify(keepErrors, null, 2));
   await keepPage.close();
 
+  // ---- Help modal: shared by all four "?" buttons. Light smoke — one button proves the
+  // mechanism (open with real content, panel-tap doesn't dismiss, backdrop-tap does).
+  // Uses #rsHelp since the main page is currently on the 34 Reset tab.
+  if (await page.isVisible("#helpBackdrop")) fail("help modal should start hidden");
+  await page.click("#rsHelp");
+  await page.waitForTimeout(100);
+  if (!(await page.isVisible("#helpBackdrop"))) fail("help modal should open on '?' click");
+  const helpTitle = (await page.textContent("#helpTitle"))?.trim();
+  const helpBody = (await page.textContent("#helpBody"))?.trim();
+  if (!helpTitle) fail("help modal should show a non-empty title");
+  if (!helpBody) fail("help modal should show non-empty body text");
+  await page.click("#helpTitle");                 // tap inside the panel
+  await page.waitForTimeout(100);
+  if (!(await page.isVisible("#helpBackdrop"))) fail("tapping inside the panel must not close it");
+  await page.click("#helpBackdrop", { position: { x: 5, y: 5 } });  // tap the backdrop itself
+  await page.waitForTimeout(100);
+  if (await page.isVisible("#helpBackdrop")) fail("tapping the backdrop should close the help modal");
+
   if (!process.exitCode)
-    console.log(`SMOKE OK: arrival ${etaClock}, shift "${shiftText}" (Tuned only), CLEAR empties the load, reset picker stays up until SET/NOW, LIVE renders from mocked HERE + hides on GPS denial, LIVE autofills blank miles but never overwrites a typed one, module loaded, no page errors`);
+    console.log(`SMOKE OK: arrival ${etaClock}, shift "${shiftText}" (Tuned only), CLEAR empties the load, reset picker stays up until SET/NOW, LIVE renders from mocked HERE + hides on GPS denial, LIVE autofills blank miles but never overwrites a typed one, help modal opens/stays/dismisses correctly, module loaded, no page errors`);
 } finally {
   await browser.close();
   server.close();
