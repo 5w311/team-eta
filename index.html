@@ -657,7 +657,17 @@ function attachPlaceSuggest(input, listEl, onPick){
       })
       // A newer keystroke fired since this request went out — a late, out-of-order
       // response must not clobber a fresher (still-typing) state.
-      .then(j => { if(myToken===token && j) render(formatPlaceSuggestions(j.items)); })
+      .then(j => {
+        if(myToken!==token || !j) return;
+        const items = formatPlaceSuggestions(j.items);
+        if(items.length){ render(items); return; }
+        // TEMP DIAGNOSTIC: the request succeeded but nothing survived the locality
+        // filter — show the raw count so "HERE found nothing" is distinguishable from
+        // "HERE found results but our resultType/city/stateCode filter is too strict".
+        const raw = (j.items||[]).length;
+        if(raw) render(["⚠ 0 city matches in "+raw+" raw result"+(raw===1?"":"s")+
+          " (first: "+JSON.stringify(j.items[0]).slice(0,140)+")"], true);
+      })
       .catch(err => {
         console.warn("suggest fetch failed:", err);
         if(myToken===token) render(["⚠ suggest fetch failed: "+(err && err.message || err)], true);
