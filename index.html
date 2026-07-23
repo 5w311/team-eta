@@ -213,6 +213,17 @@
   .chip.grey{color:var(--mute);border-color:var(--mute)}
   .meta{display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap}
   .err{font-family:var(--mono);font-size:11px;color:var(--late);margin-top:8px}
+
+  /* City-suggestion dropdown, shared shape for destIn/origIn/rsIn. Positioned under
+     whichever .row wraps its input (that row gets position:relative inline). */
+  .suggest{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:20;
+    background:var(--panel);border:1px solid var(--line);border-radius:8px;
+    box-shadow:var(--shadow);max-height:220px;overflow-y:auto}
+  .suggest button{display:block;width:100%;text-align:left;padding:11px 12px;
+    border:none;border-radius:0;background:transparent;color:var(--ink);
+    font-family:var(--sans);font-size:14px;letter-spacing:normal;text-transform:none}
+  .suggest button+button{border-top:1px solid var(--line)}
+  .suggest button:hover,.suggest button:focus-visible{background:var(--asphalt)}
   .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
   .presets{display:flex;gap:6px;margin-bottom:12px}
   .presets button{flex:1;padding:9px 0;font-size:11px;text-transform:uppercase;
@@ -306,9 +317,10 @@
 
       <div class="group">
         <label for="destIn">Destination town</label>
-        <div class="row">
+        <div class="row" style="position:relative">
           <input id="destIn" placeholder="e.g. Laredo, TX" autocomplete="off">
           <button class="go" id="destSet">SET</button>
+          <div class="suggest hide" id="destSuggest"></div>
         </div>
         <div class="meta hide" id="destMeta"><span class="chip" id="destChip"></span></div>
         <div class="err hide" id="destErr"></div>
@@ -325,10 +337,11 @@
           <span class="chip grey" id="origChip"></span>
           <button class="link" id="origToggle">change</button>
         </div>
-        <div class="row hide" id="origEdit" style="margin-top:8px">
+        <div class="row hide" id="origEdit" style="margin-top:8px;position:relative">
           <input id="origIn" placeholder="Town, ST" autocomplete="off">
           <button class="go" id="origSet">SET</button>
           <button id="origDev" style="padding:0 12px">DEVICE</button>
+          <div class="suggest hide" id="origSuggest"></div>
         </div>
         <div class="err hide" id="origErr"></div>
         <select id="origPick" class="hide" style="margin-top:8px"></select>
@@ -401,10 +414,11 @@
           <span class="chip grey" id="rsChip"></span>
           <button class="link" id="rsToggle">change</button>
         </div>
-        <div class="row hide" id="rsEdit" style="margin-top:8px">
+        <div class="row hide" id="rsEdit" style="margin-top:8px;position:relative">
           <input id="rsIn" placeholder="Town, ST" autocomplete="off">
           <button class="go" id="rsSet">SET</button>
           <button id="rsDev" style="padding:0 12px">DEVICE</button>
+          <div class="suggest hide" id="rsSuggest"></div>
         </div>
         <div class="err hide" id="rsErr"></div>
         <select id="rsPick" class="hide" style="margin-top:8px"></select>
@@ -442,7 +456,7 @@
     </div>
   </div>
 
-  <div class="foot" style="text-align:center;opacity:.55">MilesPost v2.4</div>
+  <div class="foot" style="text-align:center;opacity:.55">MilesPost v2.4.1</div>
 </div>
 
 <!-- Shared help modal, reused by every "?" button. No close button — dismiss by
@@ -459,7 +473,7 @@
 import {
   resolvePlace, ZONE_LIST, deviceTz, tzTag, fromWall, toWall, clockOf, dayOf, hm, hms,
   RATE, PRESETS, PRESET_VERSION, SWAP_DEFAULT, solveEta, shiftAtArrival,
-  solveEtaLive, liveFresh, LIVE_MAX_AGE_MS,
+  solveEtaLive, liveFresh, LIVE_MAX_AGE_MS, formatPlaceSuggestions,
   RESET_HOURS, AUTO_CLEAR_MS, autoClearElapsed, icsStamp, esc
 } from "./lib/logic.js";
 
@@ -592,6 +606,59 @@ const geoPos = () => new Promise((ok, no) => {
       3:"location timed out"}[e.code] || "location error")),
     { enableHighAccuracy:false, timeout:8000, maximumAge:300e3 });  // city-level is plenty
 });
+
+/* ======================= city suggestions (destIn / origIn / rsIn) ======================= */
+/* Shared GPS bias for suggestions, primed once in the background the first time any
+   suggest field is used. Never awaited by a fetch — a slow or denied permission must
+   never delay suggestions, so a request just uses whatever's already resolved, or none. */
+let placeBias = null, placeBiasTried = false;
+const primeBias = () => {
+  if(placeBiasTried) return;
+  placeBiasTried = true;
+  geoPos().then(c => { placeBias = c; }).catch(()=>{});
+};
+
+/* One reusable piece, wired to all three free-text place fields (destIn/origIn/rsIn).
+   Debounced HERE Autosuggest lookup -> a small custom dropdown (no <datalist> — iOS
+   Safari's support is unreliable). Picking a suggestion fills the input and calls the
+   field's own existing resolver (onPick) — the resolve/error/fallback logic already
+   there is not duplicated here. Fails silently offline/on error: the dropdown just
+   doesn't appear, typing and SET/Enter keep working exactly as before. */
+function attachPlaceSuggest(input, listEl, onPick){
+  let timer = null, token = 0;
+  const hideList = () => { listEl.innerHTML = ""; show(listEl, false); };
+  const render = items => {
+    if(!items.length){ hideList(); return; }
+    listEl.innerHTML = items.map(s => "<button>"+s+"</button>").join("");
+    [...listEl.children].forEach((btn,i) => {
+      btn.onclick = () => { input.value = items[i]; hideList(); onPick(); };
+    });
+    show(listEl, true);
+  };
+  const fetchNow = (q, myToken) => {
+    const at = placeBias ? "&at="+placeBias.latitude+","+placeBias.longitude : "";
+    fetch("https://autosuggest.search.hereapi.com/v1/autosuggest?q="+encodeURIComponent(q)
+      + at + "&in=countryCode:USA&limit=5&apikey="+HERE_API_KEY)
+      .then(res => res.ok ? res.json() : null)
+      // A newer keystroke fired since this request went out — a late, out-of-order
+      // response must not clobber a fresher (still-typing) state.
+      .then(j => { if(myToken===token && j) render(formatPlaceSuggestions(j.items)); })
+      .catch(()=>{});
+  };
+  input.addEventListener("input", () => {
+    primeBias();
+    clearTimeout(timer);
+    token++;
+    const q = input.value.trim();
+    if(q.length < 3){ hideList(); return; }
+    const myToken = token;
+    timer = setTimeout(()=> fetchNow(q, myToken), 300);
+  });
+  input.addEventListener("keydown", e => { if(e.key==="Escape") hideList(); });
+  document.addEventListener("click", e => {
+    if(e.target!==input && !listEl.contains(e.target)) hideList();
+  });
+}
 
 /* HERE error bodies carry a human "title"/"cause" — surface it so a failure on a phone
    (where nobody reads the console) can be reported exactly. */
@@ -730,6 +797,7 @@ $("destSet").onclick = doDest;
 $("destIn").addEventListener("keydown", e=>{ if(e.key==="Enter") doDest(); });
 $("destPick").onchange = e=>{ E.destTz=e.target.value; E.destName="";
   show($("destErr"),false); show($("destPick"),false); renderEta(); };
+attachPlaceSuggest($("destIn"), $("destSuggest"), doDest);
 
 $("origToggle").onclick = ()=>{
   const on = $("origEdit").classList.contains("hide");
@@ -757,6 +825,7 @@ $("origSet").onclick = doOrig;
 $("origIn").addEventListener("keydown", e=>{ if(e.key==="Enter") doOrig(); });
 $("origDev").onclick = ()=> setOrigin(deviceTz(), "Your device");
 $("origPick").onchange = e=> setOrigin(e.target.value, "Manual");
+attachPlaceSuggest($("origIn"), $("origSuggest"), doOrig);
 
 const setEtaMode = m => {
   E.mode=m; saveEta();
@@ -948,6 +1017,7 @@ const doRs = ()=>{
 };
 $("rsSet").onclick = doRs;
 $("rsIn").addEventListener("keydown", e=>{ if(e.key==="Enter") doRs(); });
+attachPlaceSuggest($("rsIn"), $("rsSuggest"), doRs);
 $("rsDev").onclick = ()=> applyRsTz(deviceTz(), "Your device");
 $("rsPick").onchange = e=> applyRsTz(e.target.value, "Manual");
 
