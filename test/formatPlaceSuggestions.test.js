@@ -50,4 +50,44 @@ describe("formatPlaceSuggestions", () => {
     ];
     expect(formatPlaceSuggestions(items)).toEqual(["Dallas, TX", "Fort Worth, TX"]);
   });
+
+  it("falls back to parsing address.label when city/stateCode fields are absent " +
+     "(this account's plan returns only a flat label, not structured fields)", () => {
+    // The exact real-world shape reported: resultType is "locality" (so the type
+    // filter is right), but address has only { label } — no city, no stateCode.
+    const items = [{
+      title: "Chattanooga, TN, United States",
+      id: "here:cm:namedplace:21020565",
+      resultType: "locality",
+      localityType: "city",
+      address: { label: "Chattanooga, TN, United States" },
+    }];
+    expect(formatPlaceSuggestions(items)).toEqual(["Chattanooga, TN"]);
+  });
+
+  it("falls back to title when address.label is also missing", () => {
+    const items = [{ resultType: "locality", title: "Nashville, TN, United States", address: {} }];
+    expect(formatPlaceSuggestions(items)).toEqual(["Nashville, TN"]);
+  });
+
+  it("prefers structured city/stateCode over the label when both are present", () => {
+    const items = [{
+      resultType: "locality",
+      address: { city: "El Paso", stateCode: "TX", label: "Something Else, ZZ, Nowhere" },
+    }];
+    expect(formatPlaceSuggestions(items)).toEqual(["El Paso, TX"]);
+  });
+
+  it("drops a parsed result if the label's second segment isn't a 2-letter code", () => {
+    const items = [{ resultType: "locality", address: { label: "Paris, Ile-de-France, France" } }];
+    expect(formatPlaceSuggestions(items)).toEqual([]);
+  });
+
+  it("dedupes across structured and label-parsed results that resolve the same", () => {
+    const items = [
+      { resultType: "locality", address: { city: "Austin", stateCode: "TX" } },
+      { resultType: "locality", address: { label: "Austin, TX, United States" } },
+    ];
+    expect(formatPlaceSuggestions(items)).toEqual(["Austin, TX"]);
+  });
 });

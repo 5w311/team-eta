@@ -311,8 +311,11 @@ try {
   await keepPage.close();
 
   // ---- City suggestions (destIn/origIn/rsIn share one mechanism — test destIn as the
-  // representative case). Mocked HERE Autosuggest response mixes a locality result with a
-  // non-locality one, proving formatPlaceSuggestions' filtering runs through end-to-end.
+  // representative case). Mocked HERE Autosuggest response mirrors what this account's
+  // plan actually returns: a locality item with only a flat address.label — no
+  // structured city/stateCode fields (confirmed via an on-device diagnostic build) —
+  // mixed with a non-locality result, proving both the label-parsing fallback and the
+  // resultType filter run through end-to-end, not just in the pure-function tests.
   const suggestPage = await browser.newPage();
   const suggestErrors = [];
   suggestPage.on("pageerror", e => suggestErrors.push("pageerror: " + e.message));
@@ -322,8 +325,10 @@ try {
       const u = String(url);
       if (u.includes("autosuggest.search.hereapi.com"))
         return Promise.resolve(new Response(JSON.stringify({ items: [
-          { resultType: "locality", address: { city: "Nashville", stateCode: "TN" } },
-          { resultType: "place", address: { city: "Nashville", stateCode: "TN", label: "Nashville Zoo" } },
+          { resultType: "locality", title: "Nashville, TN, United States",
+            address: { label: "Nashville, TN, United States" } },
+          { resultType: "place", title: "Nashville Zoo",
+            address: { label: "Nashville Zoo, Nashville, TN, United States" } },
         ]})));
       return realFetch(url, ...rest);
     };
